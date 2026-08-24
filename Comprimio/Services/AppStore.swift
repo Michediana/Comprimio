@@ -27,7 +27,15 @@ final class AppStore: ObservableObject {
     // MARK: - Stato
 
     @Published var items: [ImageItem] = []
-    @Published var selection: Set<ImageItem.ID> = []
+    /// Il publisher di `@Published` emette in `willSet`: una sink su
+    /// `$selection` leggerebbe ancora la selezione precedente e l'anteprima
+    /// mostrerebbe il file sbagliato. `didSet` scatta a valore già aggiornato.
+    @Published var selection: Set<ImageItem.ID> = [] {
+        didSet {
+            guard selection != oldValue else { return }
+            refreshPreview()
+        }
+    }
     @Published var sortOrder: [KeyPathComparator<ImageItem>] = [
         KeyPathComparator(\ImageItem.name, order: .forward)
     ]
@@ -71,11 +79,6 @@ final class AppStore: ObservableObject {
                 newSettings.save()
                 self?.refreshPreview()
             }
-            .store(in: &cancellables)
-
-        $selection
-            .removeDuplicates()
-            .sink { [weak self] _ in self?.refreshPreview() }
             .store(in: &cancellables)
     }
 
@@ -156,9 +159,12 @@ final class AppStore: ObservableObject {
         items.sort(using: sortOrder)
     }
 
+    /// Il primo elemento selezionato nell'ordine della lista.
+    /// `Set.first` non ha un ordine definito: con più file selezionati
+    /// l'anteprima cambierebbe a caso.
     var selectedItem: ImageItem? {
-        guard let id = selection.first else { return items.first }
-        return items.first { $0.id == id }
+        guard !selection.isEmpty else { return items.first }
+        return items.first { selection.contains($0.id) }
     }
 
     var totalOriginalSize: Int64 { items.reduce(0) { $0 + $1.originalSize } }
