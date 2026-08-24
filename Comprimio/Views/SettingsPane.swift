@@ -47,6 +47,13 @@ struct SettingsPane: View {
             .contentPanel()
         }
         .padding(12)
+        #if DEBUG
+        .onReceive(NotificationCenter.default.publisher(for: .debugSelectTab)) { note in
+            if let raw = note.object as? String, let selected = SettingsTab(rawValue: raw) {
+                tab = selected
+            }
+        }
+        #endif
     }
 }
 
@@ -292,8 +299,7 @@ private struct DestinationTab: View {
             switch store.settings.destination {
             case .subfolder:
                 LabeledContent("Nome sottocartella") {
-                    TextField("Comprimio", text: $store.settings.subfolderName)
-                        .frame(width: 150)
+                    TextBox(text: $store.settings.subfolderName, placeholder: "Comprimio", width: 150)
                 }
             case .customFolder:
                 LabeledContent("Cartella") {
@@ -315,10 +321,10 @@ private struct DestinationTab: View {
 
         SettingsGroup("Nome del file") {
             LabeledContent("Prefisso") {
-                TextField("", text: $store.settings.namePrefix).frame(width: 130)
+                TextBox(text: $store.settings.namePrefix, placeholder: "es. web-", width: 200)
             }
             LabeledContent("Suffisso") {
-                TextField("es. -compresso", text: $store.settings.nameSuffix).frame(width: 130)
+                TextBox(text: $store.settings.nameSuffix, placeholder: "es. -compresso", width: 200)
             }
             Toggle("Sovrascrivi i file esistenti", isOn: $store.settings.overwriteExisting)
             HelpText(exampleName)

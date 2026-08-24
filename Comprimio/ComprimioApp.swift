@@ -15,6 +15,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in AppStore.shared.add(urls: urls) }
     }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        DebugSnapshot.runIfRequested()
+        #endif
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }
