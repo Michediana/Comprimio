@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuremap [
+  <!ELEMENT configuremap (configure)+>
+  <!ATTLIST configuremap xmlns CDATA #FIXED ''>
+  <!ELEMENT configure EMPTY>
+  <!ATTLIST configure xmlns CDATA #FIXED '' name NMTOKEN #REQUIRED
+    value CDATA #REQUIRED>
+]>
+<!--
+  ImageMagick build configuration.
+-->
+<configuremap>
+  <configure name="CC" value="clang"/>
+  <configure name="CFLAGS" value="-I/opt/homebrew/opt/webp/include -I/opt/homebrew/opt/webp/include/webp -I/opt/homebrew/opt/webp/include -I/opt/homebrew/opt/webp/include/webp -I/opt/homebrew/opt/libtiff/include -I/opt/homebrew/opt/webp/include -I/opt/homebrew/opt/webp/include/webp -I/opt/homebrew/opt/zstd/include -I/opt/homebrew/Cellar/xz/5.8.3/include -I/opt/homebrew/opt/jpeg-turbo/include -I/opt/homebrew/opt/libpng/include/libpng16 -I/opt/homebrew/Cellar/xz/5.8.3/include -I/opt/homebrew/opt/little-cms2/include -I/opt/homebrew/opt/libheif/include -I/opt/homebrew/Cellar/libde265/1.1.1/include -I/opt/homebrew/Cellar/x265/4.2/include -I/opt/homebrew/Cellar/aom/3.14.1/include -I/opt/homebrew/Cellar/libvmaf/3.2.0/include -I/opt/homebrew/Cellar/libvmaf/3.2.0/include/libvmaf -I/opt/homebrew/opt/webp/include/webp -I/opt/homebrew/opt/freetype/include/freetype2 -I/opt/homebrew/opt/libpng/include/libpng16 -Wall -g -O2 -fexceptions -D_FORTIFY_SOURCE=0 -pthread -DMAGICKCORE_HDRI_ENABLE=1 -DMAGICKCORE_QUANTUM_DEPTH=16 -I/opt/homebrew/opt/jpeg-turbo/include -DMAGICKCORE_CHANNEL_MASK_DEPTH=32"/>
+  <configure name="CHANNEL_MASK_DEPTH" value="32"/>
+  <configure name="CODER_PATH" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30/lib/ImageMagick/modules-Q16HDRI/coders"/>
+  <configure name="CONFIGURE_PATH" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30/etc/ImageMagick-7/"/>
+  <configure name="CONFIGURE" value="./configure  '--enable-osx-universal-binary=no' '--disable-silent-rules' '--disable-opencl' '--enable-shared' '--enable-static' '--with-gvc=no' '--with-modules' '--with-webp=yes' '--with-heic=yes' '--with-raw=no' '--without-gslib' '--with-lqr' '--without-djvu' '--without-fftw' '--without-pango' '--without-wmf' '--without-jxl' '--without-openexr' '--without-x' '--disable-debug' '--disable-dependency-tracking' '--prefix=/opt/homebrew/Cellar/imagemagick/7.1.2-30' '--libdir=/opt/homebrew/Cellar/imagemagick/7.1.2-30/lib' 'CC=clang' 'CXX=clang++' 'PKG_CONFIG_PATH=/opt/homebrew/opt/pkgconf/lib/pkgconfig:/opt/homebrew/opt/libpng/lib/pkgconfig:/opt/homebrew/opt/freetype/lib/pkgconfig:/opt/homebrew/opt/jpeg-turbo/lib/pkgconfig:/opt/homebrew/opt/libvmaf/lib/pkgconfig:/opt/homebrew/opt/aom/lib/pkgconfig:/opt/homebrew/opt/libde265/lib/pkgconfig:/opt/homebrew/opt/webp/lib/pkgconfig:/opt/homebrew/opt/xz/lib/pkgconfig:/opt/homebrew/opt/lz4/lib/pkgconfig:/opt/homebrew/opt/zstd/lib/pkgconfig:/opt/homebrew/opt/libtiff/lib/pkgconfig:/opt/homebrew/opt/x265/lib/pkgconfig:/opt/homebrew/opt/libheif/lib/pkgconfig:/opt/homebrew/opt/little-cms2/lib/pkgconfig' 'PKG_CONFIG_LIBDIR=/usr/lib/pkgconfig:/opt/homebrew/Library/Homebrew/os/mac/pkgconfig/26'"/>
+  <configure name="COPYRIGHT" value="Copyright (C) 1999 ImageMagick Studio LLC"/>
+  <configure name="CPPFLAGS" value="-I/opt/homebrew/Cellar/imagemagick/7.1.2-30/include/ImageMagick-7"/>
+  <configure name="CXXFLAGS" value="-g -O2 -pthread"/>
+  <configure name="CXX" value="clang++"/>
+  <configure name="DEFS" value="-DHAVE_CONFIG_H"/>
+  <configure name="DELEGATES" value="bzlib freetype heic jng jpeg lcms lzma png tiff webp xml zlib zstd"/>
+  <configure name="DISTCHECK_CONFIG_FLAGS" value="'CC=clang' 'CXX=clang++'  --disable-deprecated  --with-quantum-depth=16  --with-jemalloc=no  --with-umem=no  --with-autotrace=no  --with-dps=no  --with-fftw=no  --with-flif=no  --with-fpx=no  --with-djvu=no  --with-gslib=no  --with-gvc=no  --with-openexr=no  --with-pango=no  --with-libraw=no  --with-rsvg=no  --with-uhdr=no  --with-wmf=no  --with-perl=no "/>
+  <configure name="DOCUMENTATION_PATH" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30/share/doc/ImageMagick-7"/>
+  <configure name="EXEC-PREFIX" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30"/>
+  <configure name="EXECUTABLE_PATH" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30/bin"/>
+  <configure name="FEATURES" value="Channel-masks(32-bit) Cipher DPC HDRI Modules"/>
+  <configure name="FILTER_PATH" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30/lib/ImageMagick/modules-Q16HDRI/filters"/>
+  <configure name="GIT_REVISION" value="7d45ed032:20260823" />
+  <configure name="HOST" value="aarch64-apple-darwin25.6.0"/>
+  <configure name="INCLUDE_PATH" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30/include/ImageMagick-7"/>
+  <configure name="LDFLAGS" value="-L/opt/homebrew/Cellar/imagemagick/7.1.2-30/lib "/>
+  <configure name="LIBRARY_ABSOLUTE_PATH" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30/lib/ImageMagick"/>
+  <configure name="LIBS" value=" -L/opt/homebrew/opt/little-cms2/lib -llcms2  -L/opt/homebrew/opt/freetype/lib -lfreetype    -lxml2       -lbz2 -lz   -lltdl  -lm    -lpthread   "/>
+  <configure name="LIB_VERSION_NUMBER" value="7,1,2,30"/>
+  <configure name="LIB_VERSION" value="0x712"/>
+  <configure name="NAME" value="ImageMagick"/>
+  <configure name="PCFLAGS" value="-DMAGICKCORE_HDRI_ENABLE=1 -DMAGICKCORE_QUANTUM_DEPTH=16 -DMAGICKCORE_CHANNEL_MASK_DEPTH=32"/>
+  <configure name="PREFIX" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30"/>
+  <configure name="QuantumDepth" value="16"/>
+  <configure name="RELEASE_DATE" value="2026-08-23"/>
+  <configure name="SECURITY_POLICY" value="open"/>
+  <configure name="SHAREARCH_PATH" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30/lib/ImageMagick/config-Q16HDRI"/>
+  <configure name="SHARE_PATH" value="/opt/homebrew/Cellar/imagemagick/7.1.2-30/share/ImageMagick-7"/>
+  <configure name="TARGET_CPU" value="aarch64"/>
+  <configure name="TARGET_OS" value="darwin25.6.0"/>
+  <configure name="TARGET_VENDOR" value="apple"/>
+  <configure name="VERSION" value="7.1.2"/>
+  <configure name="WEBSITE" value="https://imagemagick.org"/>
+</configuremap>

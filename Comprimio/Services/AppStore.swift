@@ -49,6 +49,8 @@ final class AppStore: ObservableObject {
     @Published var previewError: String?
 
     private var previewTask: Task<Void, Never>?
+    private var previewCancellation: MagickCancellation?
+    private var batchCancellation: MagickCancellation?
     private var previewedItemID: ImageItem.ID?
     private var processingTask: Task<Void, Never>?
     private var cancellables: Set<AnyCancellable> = []
@@ -220,6 +222,8 @@ final class AppStore: ObservableObject {
 
         let settings = self.settings
         let location = install.location
+        let cancellation = MagickCancellation()
+        batchCancellation = cancellation
         let jobs = items.map { (id: $0.id, url: $0.url) }
         let lanes = max(1, min(ProcessInfo.processInfo.activeProcessorCount - 1, 8))
 
@@ -232,7 +236,12 @@ final class AppStore: ObservableObject {
                 func addTask(_ job: (id: ImageItem.ID, url: URL)) {
                     group.addTask {
                         await self?.setStatus(.processing, for: job.id)
-                        let outcome = Self.process(url: job.url, settings: settings, using: location)
+                        let outcome = Self.process(
+                            url: job.url,
+                            settings: settings,
+                            using: location,
+                            cancellation: cancellation
+                        )
                         await self?.finish(job.id, with: outcome)
                     }
                 }
@@ -252,7 +261,18 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Da chiamare alla chiusura dell'app: un sottoprocesso non muore con il
+    /// padre, e resterebbe a lavorare dopo che la finestra è sparita.
+    func cancelAllWork() {
+        previewCancellation?.cancel()
+        previewCancellation = nil
+        cancelProcessing()
+    }
+
     func cancelProcessing() {
+        // Prima i sottoprocessi: annullare solo il Task li lascerebbe girare.
+        batchCancellation?.cancel()
+        batchCancellation = nil
         processingTask?.cancel()
         processingTask = nil
         isProcessing = false
@@ -262,7 +282,8 @@ final class AppStore: ObservableObject {
     private nonisolated static func process(
         url: URL,
         settings: ConversionSettings,
-        using location: MagickLocation
+        using location: MagickLocation,
+        cancellation: MagickCancellation
     ) -> Result<(URL, Int64), Error> {
         do {
             let target = ImageMagick.outputURL(for: url, settings: settings)
@@ -270,7 +291,8 @@ final class AppStore: ObservableObject {
                 input: url,
                 output: target,
                 settings: settings,
-                using: location
+                using: location,
+                cancellation: cancellation
             )
             let attrs = try FileManager.default.attributesOfItem(atPath: produced.path)
             let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
@@ -302,6 +324,7 @@ final class AppStore: ObservableObject {
     private func finishRun() {
         isProcessing = false
         processingTask = nil
+        batchCancellation = nil
         let done = items.filter { $0.status == .done }
         let failed = items.filter { $0.status == .failed }.count
         let before = done.reduce(Int64(0)) { $0 + $1.originalSize }
@@ -323,6 +346,9 @@ final class AppStore: ObservableObject {
     // MARK: - Anteprima
 
     func refreshPreview() {
+        // Un'anteprima superata non serve più a nessuno: fermare anche il
+        // processo evita di accumulare `magick` orfani a ogni modifica.
+        previewCancellation?.cancel()
         previewTask?.cancel()
         guard let item = selectedItem, let install else {
             clearPreview()
@@ -344,6 +370,8 @@ final class AppStore: ObservableObject {
 
         let settings = self.settings
         let location = install.location
+        let cancellation = MagickCancellation()
+        previewCancellation = cancellation
         let format = settings.targetFormat(for: item.url)
         let destination = previewDirectory
             .appendingPathComponent("preview-\(abs(item.url.path.hashValue))")
@@ -357,7 +385,8 @@ final class AppStore: ObservableObject {
                         output: destination,
                         settings: settings,
                         using: location,
-                        previewFit: 1600
+                        previewFit: 1600,
+                        cancellation: cancellation
                     )
                     let attrs = try FileManager.default.attributesOfItem(atPath: produced.path)
                     let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
@@ -394,6 +423,8 @@ final class AppStore: ObservableObject {
     }
 
     private func clearPreview() {
+        previewCancellation?.cancel()
+        previewCancellation = nil
         previewedItemID = nil
         previewOriginal = nil
         previewResult = nil

@@ -124,6 +124,7 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/Scripts/bundle-imagemagick.py",
+				"$(SRCROOT)/Vendor/ImageMagick/imagemagick-bundle.json",
 			);
 			name = "Includi ImageMagick nel bundle";
 			outputPaths = (
@@ -131,7 +132,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ -n \"$SKIP_IMAGEMAGICK_BUNDLING\" ]; then\n  echo \"note: bundling di ImageMagick saltato (SKIP_IMAGEMAGICK_BUNDLING)\"\n  exit 0\nfi\nexec /usr/bin/python3 \"${SRCROOT}/Scripts/bundle-imagemagick.py\" \\\n  \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ImageMagick\"\n";
+			shellScript = "if [ -n \"$SKIP_IMAGEMAGICK_BUNDLING\" ]; then\n  echo \"note: bundling di ImageMagick saltato (SKIP_IMAGEMAGICK_BUNDLING)\"\n  exit 0\nfi\nexec /usr/bin/python3 \"${SRCROOT}/Scripts/bundle-imagemagick.py\" install \\\n  \"${SRCROOT}/Vendor/ImageMagick\" \\\n  \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ImageMagick\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

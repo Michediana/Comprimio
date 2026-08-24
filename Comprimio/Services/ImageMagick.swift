@@ -12,6 +12,50 @@ struct MagickError: LocalizedError, Sendable {
     var errorDescription: String? { message }
 }
 
+/// Permette di terminare i processi `magick` ancora in corso.
+///
+/// Annullare un `Task` non tocca i sottoprocessi: senza questo, chiudere
+/// un'anteprima o premere Annulla lascia `magick` a macinare in background,
+/// e su un file grande può volerci molto.
+final class MagickCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var running: [Process] = []
+    private var isCancelled = false
+
+    /// Registra un processo appena avviato. `false` se è già stato annullato:
+    /// in quel caso il chiamante non deve nemmeno partire.
+    func register(_ process: Process) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !isCancelled else { return false }
+        running.append(process)
+        return true
+    }
+
+    func unregister(_ process: Process) {
+        lock.lock()
+        running.removeAll { $0 === process }
+        lock.unlock()
+    }
+
+    func cancel() {
+        lock.lock()
+        isCancelled = true
+        let snapshot = running
+        running = []
+        lock.unlock()
+        for process in snapshot where process.isRunning {
+            process.terminate()
+        }
+    }
+
+    var cancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCancelled
+    }
+}
+
 /// Da dove arriva il binario `magick` che stiamo usando.
 enum MagickSource: Sendable {
     case bundled          // incluso in Comprimio.app
@@ -193,6 +237,15 @@ enum ImageMagick {
         let format = settings.targetFormat(for: input)
         var args: [String] = [input.path]
 
+        // Per l'anteprima riduco subito la sorgente: applicare prima le
+        // operazioni dell'utente su un file enorme (un ingrandimento al 287%
+        // di un 9000×9000 sono 667 megapixel) rende l'anteprima inutilizzabile.
+        // Il risultato resta rappresentativo e la dimensione è già segnalata
+        // come stima quando l'anteprima è ridotta.
+        if previewFit != nil {
+            args += ["-resize", "4000x4000>"]
+        }
+
         // 1. Orientamento EXIF prima di qualsiasi trasformazione geometrica.
         if settings.autoOrient { args += ["-auto-orient"] }
 
@@ -351,15 +404,25 @@ enum ImageMagick {
     }
 
     @discardableResult
-    static func run(_ location: MagickLocation, arguments: [String]) throws -> RunResult {
-        try run(location.executable, arguments: arguments, environment: location.environment)
+    static func run(
+        _ location: MagickLocation,
+        arguments: [String],
+        cancellation: MagickCancellation? = nil
+    ) throws -> RunResult {
+        try run(
+            location.executable,
+            arguments: arguments,
+            environment: location.environment,
+            cancellation: cancellation
+        )
     }
 
     @discardableResult
     static func run(
         _ executable: URL,
         arguments: [String],
-        environment: [String: String]? = nil
+        environment: [String: String]? = nil,
+        cancellation: MagickCancellation? = nil
     ) throws -> RunResult {
         let process = Process()
         process.executableURL = executable
@@ -370,6 +433,11 @@ enum ImageMagick {
         let errPipe = Pipe()
         process.standardOutput = outPipe
         process.standardError = errPipe
+
+        if let cancellation, !cancellation.register(process) {
+            throw MagickError(message: "Operazione annullata.")
+        }
+        defer { cancellation?.unregister(process) }
 
         try process.run()
 
@@ -391,7 +459,8 @@ enum ImageMagick {
         output: URL,
         settings: ConversionSettings,
         using location: MagickLocation,
-        previewFit: Int? = nil
+        previewFit: Int? = nil,
+        cancellation: MagickCancellation? = nil
     ) throws -> URL {
         try FileManager.default.createDirectory(
             at: output.deletingLastPathComponent(),
@@ -402,8 +471,11 @@ enum ImageMagick {
             : uniqueURL(output)
 
         let args = arguments(settings: settings, input: input, output: destination, previewFit: previewFit)
-        let result = try run(location, arguments: args)
+        let result = try run(location, arguments: args, cancellation: cancellation)
 
+        if cancellation?.cancelled == true {
+            throw MagickError(message: "Operazione annullata.")
+        }
         guard result.exitCode == 0, FileManager.default.fileExists(atPath: destination.path) else {
             let stderr = result.standardError.trimmingCharacters(in: .whitespacesAndNewlines)
             throw MagickError(message: stderr.isEmpty ? "magick è terminato con codice \(result.exitCode)." : stderr)

@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# ImageMagick versionato: byte identici, nessuna conversione di fine riga.
+# Una normalizzazione qui corromperebbe binari e descrittori libtool.
+Vendor/** -text

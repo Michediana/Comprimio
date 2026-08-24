@@ -17,10 +17,20 @@ Struttura prodotta sotto Contents/Resources/ImageMagick:
     lib/ImageMagick*/config-*/                    file di configurazione
     imagemagick-bundle.json                       manifest letto dall'app
 
-Uso: bundle-imagemagick.py <cartella-di-destinazione>
+Due modalità:
 
-Se ImageMagick non è installato esce con successo senza fare nulla: l'app
-in quel caso ricade sul binario di sistema.
+    bundle-imagemagick.py vendor <cartella-vendor>
+        Costruisce l'albero rilocabile partendo da un'installazione locale
+        (Homebrew, MacPorts, IMAGEMAGICK_PREFIX) e lo scrive in Vendor/.
+        Si lancia a mano, solo quando si aggiorna ImageMagick, e il
+        risultato si committa: firma ad-hoc, così i byte non dipendono
+        dall'identità di chi lo costruisce.
+
+    bundle-imagemagick.py install <cartella-vendor> <destinazione>
+        Copia l'albero versionato dentro l'app e lo rifirma con l'identità
+        della macchina che compila. È quello che esegue la fase di build:
+        non tocca Homebrew, quindi compilare non richiede alcuna
+        installazione di ImageMagick.
 """
 
 import glob
@@ -362,8 +372,13 @@ def write_manifest(destination, version, modules_relative, config_relatives):
         handle.write("\n")
 
 
-def codesign_tree(root):
-    identity = os.environ.get("EXPANDED_CODE_SIGN_IDENTITY") or "-"
+def codesign_tree(root, identity=None):
+    """
+    Firma ogni Mach-O. Il codice annidato va firmato prima dell'app che lo
+    contiene, altrimenti la firma del bundle non è valida.
+    """
+    if identity is None:
+        identity = os.environ.get("EXPANDED_CODE_SIGN_IDENTITY") or "-"
     adhoc = identity == "-"
 
     targets = [
@@ -392,27 +407,19 @@ def codesign_tree(root):
 
 # --- programma principale ------------------------------------------------
 
-def main():
-    if len(sys.argv) < 2:
-        raise SystemExit("Uso: bundle-imagemagick.py <cartella-di-destinazione>")
-    destination = os.path.abspath(sys.argv[1])
-
+def cmd_vendor(destination):
+    """Costruisce l'albero rilocabile da un'installazione locale."""
     prefix, magick = find_source_prefix()
     if not magick:
-        log("ImageMagick non trovato sulla macchina di build: bundling saltato.")
-        log("L'app userà il binario di sistema, se presente.")
-        return
+        raise SystemExit(
+            "ImageMagick non trovato. Installalo (brew install imagemagick) "
+            "oppure indica il prefisso con IMAGEMAGICK_PREFIX."
+        )
 
     version = magick_version(magick)
     source_modules = find_modules_dir(prefix)
-
-    stamp_path = os.path.join(destination, STAMP)
-    stamp = f"{magick}|{version}|{source_modules}|{os.path.getmtime(magick)}"
-    if os.path.exists(stamp_path) and open(stamp_path).read().strip() == stamp:
-        log(f"ImageMagick {version} già incluso e aggiornato: niente da fare.")
-        return
-
     log(f"sorgente: {magick} (ImageMagick {version})")
+
     shutil.rmtree(destination, ignore_errors=True)
     lib_dir = os.path.join(destination, "lib")
     bin_dir = os.path.join(destination, "bin")
@@ -435,7 +442,7 @@ def main():
         log(f"moduli copiati da {modules_relative}: {len(module_sources)}")
         # I .la sono i descrittori libtool con cui ltdl trova i .so: servono.
         # Il campo libdir punta al prefisso originale e va azzerato, altrimenti
-        # ltdl carica il .so di Homebrew invece di quello del bundle.
+        # ltdl carica il .so dell'installazione di sistema invece del nostro.
         for la in glob.glob(os.path.join(modules_dir, "*", "*.la")):
             with open(la) as handle:
                 text = handle.read()
@@ -477,19 +484,73 @@ def main():
         for path, reference, reason in problems[:10]:
             log(f"ERRORE {os.path.relpath(path, destination)} → {reference} ({reason})")
         raise SystemExit(f"{len(problems)} riferimenti non validi su {checked} Mach-O.")
-    log(f"verifica: {checked} Mach-O, tutti i riferimenti risolvono nel bundle")
+    log(f"verifica: {checked} Mach-O, tutti i riferimenti risolvono nell'albero")
 
-    # 7. Firma.
-    codesign_tree(destination)
+    # 7. Firma ad-hoc: su arm64 il codice non firmato non parte, ma l'identità
+    #    dello sviluppatore non deve finire nei byte committati. La fase di
+    #    build rifirma con l'identità della macchina.
+    codesign_tree(destination, identity="-")
 
     total = sum(
         os.path.getsize(os.path.join(dirpath, name))
         for dirpath, _, files in os.walk(destination)
         for name in files
     )
-    log(f"ImageMagick {version} incluso ({total / 1e6:.1f} MB)")
+    log(f"ImageMagick {version} pronto in {destination} ({total / 1e6:.1f} MB)")
+    log("committa questa cartella: da qui in poi compilare non richiede Homebrew")
+
+
+def cmd_install(vendor, destination):
+    """Copia l'albero versionato nell'app e lo rifirma."""
+    manifest_path = os.path.join(vendor, "imagemagick-bundle.json")
+    if not os.path.exists(manifest_path):
+        log(f"nessun ImageMagick versionato in {vendor}: bundling saltato.")
+        log("Ricostruiscilo con: Scripts/bundle-imagemagick.py vendor "
+            f"{os.path.relpath(vendor) if vendor else 'Vendor/ImageMagick'}")
+        log("Senza di esso l'app cercherà un ImageMagick installato sul sistema.")
+        return
+
+    with open(manifest_path) as handle:
+        version = json.load(handle).get("version", "?")
+    identity = os.environ.get("EXPANDED_CODE_SIGN_IDENTITY") or "-"
+
+    stamp_path = os.path.join(destination, STAMP)
+    stamp = f"{version}|{identity}|{os.path.getmtime(manifest_path)}"
+    if os.path.exists(stamp_path) and open(stamp_path).read().strip() == stamp:
+        log(f"ImageMagick {version} già installato e aggiornato: niente da fare.")
+        return
+
+    shutil.rmtree(destination, ignore_errors=True)
+    shutil.copytree(vendor, destination, symlinks=False,
+                    ignore=shutil.ignore_patterns(STAMP, ".git*"))
+    log(f"ImageMagick {version} copiato da {os.path.relpath(vendor, os.getcwd())}")
+
+    # Ricontrolla i riferimenti: intercetta un albero corrotto in transito,
+    # per esempio da una conversione di fine riga fatta da git.
+    checked, problems = verify(destination)
+    if problems:
+        for path, reference, reason in problems[:10]:
+            log(f"ERRORE {os.path.relpath(path, destination)} → {reference} ({reason})")
+        raise SystemExit(f"albero versionato non valido: {len(problems)} riferimenti rotti.")
+    log(f"verifica: {checked} Mach-O, tutti i riferimenti risolvono nel bundle")
+
+    codesign_tree(destination)
     with open(stamp_path, "w") as handle:
         handle.write(stamp)
+
+
+def main():
+    args = sys.argv[1:]
+    if len(args) == 2 and args[0] == "vendor":
+        cmd_vendor(os.path.abspath(args[1]))
+    elif len(args) == 3 and args[0] == "install":
+        cmd_install(os.path.abspath(args[1]), os.path.abspath(args[2]))
+    else:
+        raise SystemExit(
+            "Uso:\n"
+            "  bundle-imagemagick.py vendor <cartella-vendor>\n"
+            "  bundle-imagemagick.py install <cartella-vendor> <destinazione>"
+        )
 
 
 if __name__ == "__main__":
