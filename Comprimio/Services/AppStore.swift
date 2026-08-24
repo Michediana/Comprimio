@@ -55,6 +55,8 @@ final class AppStore: ObservableObject {
     @Published var previewPixelSize: CGSize?
     @Published var isRenderingPreview = false
     @Published var previewError: String?
+    /// Anteprima a piena risoluzione: serve solo quando l'utente ingrandisce.
+    @Published private(set) var previewDetail = false
 
     private var previewTask: Task<Void, Never>?
     private var previewCancellation: MagickCancellation?
@@ -368,6 +370,7 @@ final class AppStore: ObservableObject {
             previewResultSize = nil
             previewPixelSize = nil
             previewedItemID = item.id
+            previewDetail = false
         }
 
         previewOriginal = NSImage(contentsOf: item.url)
@@ -376,6 +379,7 @@ final class AppStore: ObservableObject {
 
         let settings = self.settings
         let location = install.location
+        let detail = previewDetail
         let cancellation = MagickCancellation()
         previewCancellation = cancellation
         let format = settings.targetFormat(for: item.url)
@@ -391,7 +395,7 @@ final class AppStore: ObservableObject {
                         output: destination,
                         settings: settings,
                         using: location,
-                        previewFit: 1600,
+                        preview: detail ? .full : .fast(fit: Self.previewFit),
                         cancellation: cancellation
                     )
                     let attrs = try FileManager.default.attributesOfItem(atPath: produced.path)
@@ -428,10 +432,20 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Chiamata quando l'utente ingrandisce l'anteprima: a quel punto la
+    /// versione ridotta non basta più e il file va riconvertito per intero.
+    /// Resta attiva finché non si cambia file.
+    func enablePreviewDetail() {
+        guard !previewDetail else { return }
+        previewDetail = true
+        refreshPreview()
+    }
+
     private func clearPreview() {
         previewCancellation?.cancel()
         previewCancellation = nil
         previewedItemID = nil
+        previewDetail = false
         previewOriginal = nil
         previewResult = nil
         previewResultSize = nil
@@ -440,11 +454,14 @@ final class AppStore: ObservableObject {
         isRenderingPreview = false
     }
 
+    /// Lato massimo dell'anteprima veloce, in pixel.
+    private static let previewFit = 1600
+
     /// L'anteprima è rimpicciolita: la dimensione mostrata è indicativa
-    /// se il file reale sarà più grande di 1600 px.
+    /// se il file reale sarà più grande dell'anteprima.
     var previewIsDownscaled: Bool {
-        guard let original = selectedItem?.pixelSize else { return false }
-        return max(original.width, original.height) > 1600
+        guard !previewDetail, let original = selectedItem?.pixelSize else { return false }
+        return max(original.width, original.height) > CGFloat(Self.previewFit)
     }
 
     private nonisolated static func pixelSize(of url: URL) -> CGSize? {

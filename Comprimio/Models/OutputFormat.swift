@@ -69,7 +69,18 @@ enum OutputFormat: String, CaseIterable, Identifiable, Codable {
     }
 
     var supportsLossless: Bool {
-        self == .webp || self == .avif
+        // L'AVIF ne resta fuori: ImageMagick non ha un'opzione «lossless» per
+        // il coder heic, e la sola strada (qualità 100) è rifiutata da libaom.
+        self == .webp
+    }
+
+    /// Qualità massima utilizzabile con questo formato.
+    ///
+    /// A 100 ImageMagick chiede a libheif la codifica senza perdita, e libaom
+    /// la rifiuta: «Only --enable_chroma_deltaq=0 can be used with
+    /// --lossless=1». Nessun `-define` la aggira, quindi l'AVIF si ferma a 99.
+    var maxQuality: Int {
+        self == .avif ? 99 : 100
     }
 
     var supportsAlpha: Bool {

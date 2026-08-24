@@ -87,12 +87,19 @@ private struct ConversionTab: View {
                 ValueSlider(
                     title: "Qualità",
                     value: $store.settings.quality,
-                    range: 1...100,
+                    range: 1...Double(format.maxQuality),
                     step: 1,
                     suffix: ""
                 )
                 .disabled(store.settings.lossless && format.supportsLossless)
+                .onChange(of: format.maxQuality) { limit in
+                    store.settings.quality = min(store.settings.quality, Double(limit))
+                }
                 HelpText(qualityHint)
+                if format == .avif {
+                    HelpText("L'AVIF si ferma a qualità 99: il codificatore incluso "
+                        + "non è in grado di produrre AVIF senza perdita.")
+                }
             } else {
                 HelpText("\(format.label) è un formato senza perdita: la qualità non si applica.")
             }

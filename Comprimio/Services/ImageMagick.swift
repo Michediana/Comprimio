@@ -101,6 +101,20 @@ private struct BundleManifest: Decodable {
     let configurePaths: [String]
 }
 
+/// Qualità richiesta per l'anteprima.
+enum PreviewQuality: Equatable, Sendable {
+    /// Copia ridotta: veloce, e per un file grande la dimensione risultante
+    /// è solo una stima.
+    case fast(fit: Int)
+    /// Pixel reali, come li produrrà l'elaborazione vera.
+    case full
+
+    var fit: Int? {
+        if case .fast(let fit) = self { return fit }
+        return nil
+    }
+}
+
 enum ImageMagick {
 
     /// Percorso impostato manualmente dall'utente, se presente.
@@ -227,12 +241,14 @@ enum ImageMagick {
     // MARK: - Costruzione argomenti
 
     /// Argomenti completi per convertire `input` in `output` con `settings`.
-    /// `previewFit` limita l'anteprima a un lato massimo in pixel.
+    /// `preview` distingue l'anteprima veloce (ridotta) da quella a piena
+    /// risoluzione, richiesta quando l'utente ingrandisce per confrontare
+    /// i pixel reali.
     static func arguments(
         settings: ConversionSettings,
         input: URL,
         output: URL,
-        previewFit: Int? = nil
+        preview: PreviewQuality? = nil
     ) -> [String] {
         let format = settings.targetFormat(for: input)
         var args: [String] = [input.path]
@@ -242,7 +258,7 @@ enum ImageMagick {
         // di un 9000×9000 sono 667 megapixel) rende l'anteprima inutilizzabile.
         // Il risultato resta rappresentativo e la dimensione è già segnalata
         // come stima quando l'anteprima è ridotta.
-        if previewFit != nil {
+        if preview?.fit != nil {
             args += ["-resize", "4000x4000>"]
         }
 
@@ -263,7 +279,7 @@ enum ImageMagick {
         if settings.grayscale { args += ["-colorspace", "Gray"] }
 
         // 3. Ridimensionamento. Il filtro serve solo se ricampioniamo davvero.
-        if settings.resizeMode != .none || previewFit != nil {
+        if settings.resizeMode != .none || preview?.fit != nil {
             args += ["-filter", settings.resizeFilter.magickValue]
         }
         args += resizeArguments(settings)
@@ -277,7 +293,7 @@ enum ImageMagick {
         }
 
         // 5. L'anteprima non ha bisogno di pixel a piena risoluzione.
-        if let fit = previewFit {
+        if let fit = preview?.fit {
             args += ["-resize", "\(fit)x\(fit)>"]
         }
 
@@ -346,15 +362,16 @@ enum ImageMagick {
         case .webp:
             args += ["-define", "webp:method=\(s.webpMethod)"]
             if s.lossless { args += ["-define", "webp:lossless=true"] }
-        case .avif:
-            if s.lossless { args += ["-define", "heic:lossless=true"] }
         default:
             break
         }
 
         if format.supportsQuality {
             let usesQuality = !(s.lossless && format.supportsLossless)
-            if usesQuality { args += ["-quality", "\(Int(s.quality))"] }
+            // Il tetto è per formato: l'AVIF non può arrivare a 100.
+            if usesQuality {
+                args += ["-quality", "\(min(Int(s.quality), format.maxQuality))"]
+            }
         }
         return args
     }
@@ -459,18 +476,19 @@ enum ImageMagick {
         output: URL,
         settings: ConversionSettings,
         using location: MagickLocation,
-        previewFit: Int? = nil,
+        preview: PreviewQuality? = nil,
         cancellation: MagickCancellation? = nil
     ) throws -> URL {
         try FileManager.default.createDirectory(
             at: output.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        let destination = settings.overwriteExisting || previewFit != nil
+        // L'anteprima riscrive sempre lo stesso file temporaneo.
+        let destination = settings.overwriteExisting || preview != nil
             ? output
             : uniqueURL(output)
 
-        let args = arguments(settings: settings, input: input, output: destination, previewFit: previewFit)
+        let args = arguments(settings: settings, input: input, output: destination, preview: preview)
         let result = try run(location, arguments: args, cancellation: cancellation)
 
         if cancellation?.cancelled == true {
