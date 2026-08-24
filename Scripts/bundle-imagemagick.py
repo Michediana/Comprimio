@@ -21,21 +21,28 @@ Due modalità:
 
     bundle-imagemagick.py vendor <cartella-vendor>
         Costruisce l'albero rilocabile partendo da un'installazione locale
-        (Homebrew, MacPorts, IMAGEMAGICK_PREFIX) e lo scrive in Vendor/.
-        Si lancia a mano, solo quando si aggiorna ImageMagick, e il
-        risultato si committa: firma ad-hoc, così i byte non dipendono
-        dall'identità di chi lo costruisce.
+        (Homebrew, MacPorts, IMAGEMAGICK_PREFIX) e lo scrive in
+        <cartella-vendor>/<architettura>. Si lancia a mano, solo quando si
+        aggiorna ImageMagick, e il risultato si committa: firma ad-hoc, così
+        i byte non dipendono dall'identità di chi lo costruisce.
 
     bundle-imagemagick.py install <cartella-vendor> <destinazione>
         Copia l'albero versionato dentro l'app e lo rifirma con l'identità
         della macchina che compila. È quello che esegue la fase di build:
         non tocca Homebrew, quindi compilare non richiede alcuna
         installazione di ImageMagick.
+
+Ogni architettura è un albero a sé, generato sulla macchina corrispondente:
+ImageMagick si installa come binario nativo, e non esiste un modo pratico di
+produrre l'albero arm64 da un Mac Intel o viceversa. La fase di build sceglie
+in base ad ARCHS: una sola architettura viene copiata così com'è, più di una
+vengono fuse con lipo in un albero universale.
 """
 
 import glob
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -132,9 +139,17 @@ def rpaths(path):
 
 
 def linked_libraries(path):
-    """Nomi così come sono scritti nel Mach-O, install name incluso."""
+    """
+    Nomi così come sono scritti nel Mach-O, install name incluso.
+
+    Su un file fat `otool -L` intercala un'intestazione per architettura
+    («file (architecture arm64):»), che non è una dipendenza. Le righe delle
+    librerie sono le uniche indentate: le altre si scartano.
+    """
     out = subprocess.run(["otool", "-L", path], capture_output=True, text=True).stdout
-    return [line.strip().split(" (")[0] for line in out.splitlines()[1:] if line.strip()]
+    return [line.strip().split(" (")[0]
+            for line in out.splitlines()[1:]
+            if line.startswith((" ", "\t")) and line.strip()]
 
 
 # Pool di LC_RPATH raccolti da tutti i Mach-O esaminati. Serve perché dyld
@@ -405,10 +420,95 @@ def codesign_tree(root, identity=None):
     log(f"firmati {len(targets) - failures}/{len(targets)} file Mach-O con «{identity}»")
 
 
+# --- alberi per architettura ---------------------------------------------
+
+def binary_arches(path):
+    """Architetture presenti in un Mach-O, secondo lipo."""
+    out = subprocess.run(["lipo", "-archs", path], capture_output=True, text=True)
+    return out.stdout.split()
+
+
+def arch_trees(vendor):
+    """
+    Alberi presenti sotto <vendor>/<arch>/, uno per architettura. Un manifest
+    direttamente in <vendor> significa albero singolo vecchio stile: si tratta
+    come l'architettura della macchina, così un albero già versionato non
+    smette di funzionare.
+    """
+    if os.path.exists(os.path.join(vendor, "imagemagick-bundle.json")):
+        return {platform.machine(): vendor}
+    trees = {}
+    if os.path.isdir(vendor):
+        for name in sorted(os.listdir(vendor)):
+            path = os.path.join(vendor, name)
+            if os.path.exists(os.path.join(path, "imagemagick-bundle.json")):
+                trees[name] = path
+    return trees
+
+
+def wanted_arches():
+    """
+    Architetture che la build sta producendo. ARCHS è impostata da Xcode;
+    fuori da Xcode vale quella della macchina.
+    """
+    return os.environ.get("ARCHS", "").split() or [platform.machine()]
+
+
+def manifest_of(tree):
+    with open(os.path.join(tree, "imagemagick-bundle.json")) as handle:
+        return json.load(handle)
+
+
+def merge_arch(destination, arch, tree):
+    """
+    Porta l'architettura `arch` dentro l'albero già copiato in `destination`:
+    ogni Mach-O comune diventa fat, quelli presenti solo qui vengono aggiunti.
+
+    I file esclusivi non sono un errore: se le due installazioni di partenza
+    hanno versioni diverse di una dipendenza (libaom.3.14 contro libaom.3.15),
+    ciascuna slice continua a riferirsi al file che conosce, e dyld carica solo
+    quello dell'architettura in esecuzione. La verifica finale controlla che
+    entrambi i riferimenti risolvano.
+    """
+    fused = added = 0
+    for dirpath, _, files in os.walk(tree):
+        for name in files:
+            if name == STAMP:
+                continue
+            source = os.path.join(dirpath, name)
+            relative = os.path.relpath(source, tree)
+            target = os.path.join(destination, relative)
+
+            if not os.path.exists(target):
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                shutil.copy2(source, target)
+                added += 1
+                continue
+
+            if not (is_macho(source) and is_macho(target)):
+                continue          # xml, .la, manifest: bastano quelli del primo albero
+            if set(binary_arches(source)) <= set(binary_arches(target)):
+                continue          # quest'architettura c'è già
+
+            # lipo non può scrivere su un proprio input.
+            fat = target + ".fat"
+            subprocess.run(["lipo", "-create", target, source, "-output", fat],
+                           check=True, capture_output=True, text=True)
+            shutil.copystat(target, fat)
+            os.replace(fat, target)
+            fused += 1
+    log(f"{arch}: {fused} Mach-O fusi, {added} file aggiunti")
+
+
 # --- programma principale ------------------------------------------------
 
-def cmd_vendor(destination):
-    """Costruisce l'albero rilocabile da un'installazione locale."""
+def cmd_vendor(vendor):
+    """
+    Costruisce l'albero rilocabile da un'installazione locale e lo scrive in
+    <vendor>/<architettura>: le architetture restano alberi separati, ognuno
+    generato sulla macchina che le corrisponde, e la fase di build sceglie o
+    fonde in base a quelle che sta compilando.
+    """
     prefix, magick = find_source_prefix()
     if not magick:
         raise SystemExit(
@@ -418,7 +518,22 @@ def cmd_vendor(destination):
 
     version = magick_version(magick)
     source_modules = find_modules_dir(prefix)
-    log(f"sorgente: {magick} (ImageMagick {version})")
+
+    # La cartella prende il nome dall'architettura del binario di partenza, non
+    # da quella della macchina: sbagliare cartella qui produrrebbe un'app che
+    # non parte, e nessun altro controllo se ne accorgerebbe.
+    arches = binary_arches(magick)
+    host = platform.machine()
+    if not arches:
+        raise SystemExit(f"Impossibile leggere l'architettura di {magick}.")
+    arch = host if host in arches else arches[0]
+    if len(arches) > 1:
+        log(f"attenzione: {magick} è fat ({', '.join(arches)}), lo tratto come {arch}")
+    if os.path.basename(vendor) != arch:
+        vendor = os.path.join(vendor, arch)
+    destination = vendor
+
+    log(f"sorgente: {magick} (ImageMagick {version}, {arch})")
 
     shutil.rmtree(destination, ignore_errors=True)
     lib_dir = os.path.join(destination, "lib")
@@ -498,35 +613,86 @@ def cmd_vendor(destination):
     )
     log(f"ImageMagick {version} pronto in {destination} ({total / 1e6:.1f} MB)")
     log("committa questa cartella: da qui in poi compilare non richiede Homebrew")
+    log(f"per una build universale serve anche l'albero delle altre architetture, "
+        f"generato allo stesso modo sulla macchina corrispondente")
 
 
 def cmd_install(vendor, destination):
-    """Copia l'albero versionato nell'app e lo rifirma."""
-    manifest_path = os.path.join(vendor, "imagemagick-bundle.json")
-    if not os.path.exists(manifest_path):
+    """
+    Copia nell'app l'albero delle architetture che la build sta producendo e
+    lo rifirma. Con più architetture i Mach-O vengono fusi con lipo, così
+    l'app ne contiene una copia sola, universale come il resto del binario.
+    """
+    available = arch_trees(vendor)
+    if not available:
         log(f"nessun ImageMagick versionato in {vendor}: bundling saltato.")
         log("Ricostruiscilo con: Scripts/bundle-imagemagick.py vendor "
             f"{os.path.relpath(vendor) if vendor else 'Vendor/ImageMagick'}")
         log("Senza di esso l'app cercherà un ImageMagick installato sul sistema.")
         return
 
-    with open(manifest_path) as handle:
-        version = json.load(handle).get("version", "?")
-    identity = os.environ.get("EXPANDED_CODE_SIGN_IDENTITY") or "-"
+    wanted = wanted_arches()
+    missing = [arch for arch in wanted if arch not in available]
+    selected = [arch for arch in wanted if arch in available]
+    if not selected:
+        log(f"nessun albero per {', '.join(wanted)} (presenti: {', '.join(available)}): "
+            "bundling saltato.")
+        log(f"Generalo su una macchina {wanted[0]} con: "
+            f"Scripts/bundle-imagemagick.py vendor {os.path.relpath(vendor)}")
+        log("Senza di esso l'app cercherà un ImageMagick installato sul sistema.")
+        return
+    if missing:
+        # Bundling parziale significa app che non parte sulle architetture
+        # mancanti, e nessun errore fino al primo avvio là sopra.
+        raise SystemExit(
+            f"manca l'albero ImageMagick per {', '.join(missing)}, richiesto da ARCHS.\n"
+            f"  presenti: {', '.join(available)}\n"
+            f"  generalo su una macchina {missing[0]} con: "
+            f"Scripts/bundle-imagemagick.py vendor {os.path.relpath(vendor)}"
+        )
 
+    manifests = {arch: manifest_of(available[arch]) for arch in selected}
+    base = selected[0]
+    layout = {arch: (m.get("coderModulePath"), m.get("filterModulePath"),
+                     tuple(m.get("configurePaths") or []))
+              for arch, m in manifests.items()}
+    divergent = [arch for arch in selected if layout[arch] != layout[base]]
+    if divergent:
+        # I percorsi contengono il quantum (Q16HDRI): se non coincidono, i due
+        # alberi vengono da build diverse di ImageMagick e il manifest, che è
+        # uno solo, ne descriverebbe correttamente una sola.
+        raise SystemExit(
+            f"gli alberi {base} e {', '.join(divergent)} hanno layout diversi: "
+            "rigenerali dalla stessa versione di ImageMagick."
+        )
+    versions = {arch: m.get("version", "?") for arch, m in manifests.items()}
+    version = versions[base]
+    if len(set(versions.values())) > 1:
+        log("attenzione: versioni diverse tra le architetture (" +
+            ", ".join(f"{a}: {v}" for a, v in versions.items()) +
+            f"); il manifest dichiara {version}")
+
+    identity = os.environ.get("EXPANDED_CODE_SIGN_IDENTITY") or "-"
     stamp_path = os.path.join(destination, STAMP)
-    stamp = f"{version}|{identity}|{os.path.getmtime(manifest_path)}"
+    newest = max(os.path.getmtime(os.path.join(available[arch], "imagemagick-bundle.json"))
+                 for arch in selected)
+    stamp = f"{version}|{'+'.join(selected)}|{identity}|{newest}"
     if os.path.exists(stamp_path) and open(stamp_path).read().strip() == stamp:
-        log(f"ImageMagick {version} già installato e aggiornato: niente da fare.")
+        log(f"ImageMagick {version} ({'+'.join(selected)}) già installato e aggiornato: "
+            "niente da fare.")
         return
 
     shutil.rmtree(destination, ignore_errors=True)
-    shutil.copytree(vendor, destination, symlinks=False,
+    shutil.copytree(available[base], destination, symlinks=False,
                     ignore=shutil.ignore_patterns(STAMP, ".git*"))
-    log(f"ImageMagick {version} copiato da {os.path.relpath(vendor, os.getcwd())}")
+    log(f"ImageMagick {version} {base} copiato da "
+        f"{os.path.relpath(available[base], os.getcwd())}")
+    for arch in selected[1:]:
+        merge_arch(destination, arch, available[arch])
 
     # Ricontrolla i riferimenti: intercetta un albero corrotto in transito,
-    # per esempio da una conversione di fine riga fatta da git.
+    # per esempio da una conversione di fine riga fatta da git, e su un albero
+    # fuso controlla anche le slice aggiunte, che portano con sé i propri.
     checked, problems = verify(destination)
     if problems:
         for path, reference, reason in problems[:10]:
@@ -548,7 +714,7 @@ def main():
     else:
         raise SystemExit(
             "Uso:\n"
-            "  bundle-imagemagick.py vendor <cartella-vendor>\n"
+            "  bundle-imagemagick.py vendor <cartella-vendor>   (scrive in <cartella-vendor>/<arch>)\n"
             "  bundle-imagemagick.py install <cartella-vendor> <destinazione>"
         )
 

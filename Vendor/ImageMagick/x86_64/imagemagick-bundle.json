@@ -1,0 +1,11 @@
+{
+  "version": "7.1.2",
+  "executable": "bin/magick",
+  "coderModulePath": "lib/ImageMagick/modules-Q16HDRI/coders",
+  "filterModulePath": "lib/ImageMagick/modules-Q16HDRI/filters",
+  "configurePaths": [
+    "etc/ImageMagick-7",
+    "share/ImageMagick-7",
+    "lib/ImageMagick/config-Q16HDRI"
+  ]
+}

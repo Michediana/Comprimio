@@ -175,6 +175,11 @@ enum ImageMagick {
 
         let executable = root.appendingPathComponent(manifest.executable)
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { return nil }
+        // Un binario per l'architettura sbagliata è comunque un file eseguibile:
+        // senza questo controllo verrebbe scelto lo stesso e ogni conversione
+        // fallirebbe con «Bad CPU type», invece di lasciare il posto a un
+        // ImageMagick installato sul sistema.
+        guard runsOnThisMac(executable) else { return nil }
 
         func absolute(_ relative: String) -> String {
             root.appendingPathComponent(relative).path
@@ -198,6 +203,55 @@ enum ImageMagick {
         environment["PATH"] = "\(root.appendingPathComponent("bin").path):/usr/bin:/bin"
 
         return MagickLocation(executable: executable, environment: environment, source: .bundled)
+    }
+
+    /// Architettura di questo processo, nella codifica cputype di Mach-O.
+    private static var hostCPUType: UInt32 {
+        #if arch(arm64)
+        return 0x0100_000C          // CPU_TYPE_ARM64
+        #elseif arch(x86_64)
+        return 0x0100_0007          // CPU_TYPE_X86_64
+        #else
+        return 0
+        #endif
+    }
+
+    /// Vero se il Mach-O contiene l'architettura di questo processo.
+    ///
+    /// Legge l'intestazione invece di provare a eseguire il binario: la
+    /// scoperta avviene all'avvio, e un tentativo fallito costerebbe comunque
+    /// il tempo di uno spawn.
+    static func runsOnThisMac(_ executable: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: executable) else { return false }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: 4096), data.count >= 8 else { return false }
+        let header = [UInt8](data)
+
+        func word(_ offset: Int, bigEndian: Bool) -> UInt32 {
+            var value: UInt32 = 0
+            for index in 0..<4 {
+                value = value << 8 | UInt32(header[offset + (bigEndian ? index : 3 - index)])
+            }
+            return value
+        }
+
+        // Mach-O singolo: il cputype segue subito il magic.
+        let magic = word(0, bigEndian: false)
+        if magic == 0xFEED_FACF || magic == 0xFEED_FACE {
+            return word(4, bigEndian: false) == hostCPUType
+        }
+        // Mach-O fat: l'intestazione è big-endian, seguita da una voce per
+        // architettura (20 byte, 32 nella variante a 64 bit).
+        let fatMagic = word(0, bigEndian: true)
+        if fatMagic == 0xCAFE_BABE || fatMagic == 0xCAFE_BABF {
+            let stride = fatMagic == 0xCAFE_BABE ? 20 : 32
+            for index in 0..<Int(word(4, bigEndian: true)) {
+                let offset = 8 + index * stride
+                guard offset + 4 <= header.count else { break }
+                if word(offset, bigEndian: true) == hostCPUType { return true }
+            }
+        }
+        return false
     }
 
     private static func shellWhich() throws -> String? {

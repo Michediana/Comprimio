@@ -124,7 +124,8 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/Scripts/bundle-imagemagick.py",
-				"$(SRCROOT)/Vendor/ImageMagick/imagemagick-bundle.json",
+				"$(SRCROOT)/Vendor/ImageMagick/arm64/imagemagick-bundle.json",
+				"$(SRCROOT)/Vendor/ImageMagick/x86_64/imagemagick-bundle.json",
 			);
 			name = "Includi ImageMagick nel bundle";
 			outputPaths = (
