@@ -17,19 +17,22 @@ struct ContentView: View {
             }
 
             VSplitView {
-                HSplitView {
-                    FileListPane()
-                        .frame(minWidth: 380, idealWidth: 640)
-                    SettingsPane()
-                        .frame(minWidth: 330, idealWidth: 380, maxWidth: 560)
+                VStack(spacing: 0) {
+                    HSplitView {
+                        FileListPane()
+                            .frame(minWidth: 380, idealWidth: 640)
+                        SettingsPane()
+                            .frame(minWidth: 330, idealWidth: 380, maxWidth: 560)
+                    }
+                    .frame(minHeight: 240)
+
+                    Divider()
+                    ActionBar()
                 }
-                .frame(minHeight: 240)
 
                 PreviewPane()
                     .frame(minHeight: 170, idealHeight: 280)
             }
-
-            ActionBar()
         }
         .frame(minWidth: 900, minHeight: 620)
         .toolbar { toolbarContent }

@@ -50,6 +50,8 @@ final class AppStore: ObservableObject {
     @Published var isProcessing = false
     @Published var processedCount = 0
     @Published var lastRunSummary: String?
+    /// Avanzamento delle conversioni in corso, una voce per corsia attiva.
+    @Published private(set) var itemProgress: [ImageItem.ID: MagickProgress] = [:]
 
     // Anteprima
     @Published var previewOriginal: NSImage?
@@ -218,6 +220,31 @@ final class AppStore: ObservableObject {
         }
     }
 
+    // MARK: - Avanzamento per la barra
+
+    /// L'immagine su cui puntare la barra di dettaglio: la prima ancora in
+    /// lavorazione nell'ordine della lista, cioè quella partita da più tempo
+    /// fra le corsie attive. Restare sulla più vecchia evita che la barra
+    /// salti da un file all'altro a ogni aggiornamento.
+    var focusedItem: (item: ImageItem, progress: MagickProgress)? {
+        for item in items where item.status == .processing {
+            if let progress = itemProgress[item.id] { return (item, progress) }
+        }
+        return nil
+    }
+
+    /// Quante conversioni girano in parallelo in questo momento.
+    var activeCount: Int {
+        items.reduce(0) { $0 + ($1.status == .processing ? 1 : 0) }
+    }
+
+    /// Avanzamento del batch: solo i file conclusi, così non torna indietro
+    /// quando una corsia riparte da zero su una nuova fase.
+    var batchProgress: Double {
+        guard !items.isEmpty else { return 0 }
+        return Double(processedCount) / Double(items.count)
+    }
+
     // MARK: - Elaborazione batch
 
     func startProcessing() {
@@ -226,6 +253,7 @@ final class AppStore: ObservableObject {
         isProcessing = true
         processedCount = 0
         lastRunSummary = nil
+        itemProgress = [:]
         for index in items.indices {
             items[index].status = .pending
             items[index].outputSize = nil
@@ -253,7 +281,16 @@ final class AppStore: ObservableObject {
                             url: job.url,
                             settings: settings,
                             using: location,
-                            cancellation: cancellation
+                            cancellation: cancellation,
+                            onProgress: { progress in
+                                Task { @MainActor [weak self] in
+                                    // Solo se l'elemento è ancora in lavorazione:
+                                    // un aggiornamento in ritardo dopo Annulla
+                                    // rimetterebbe una corsia fantasma nella UI.
+                                    guard self?.isProcessing == true else { return }
+                                    self?.itemProgress[job.id] = progress
+                                }
+                            }
                         )
                         await self?.finish(job.id, with: outcome)
                     }
@@ -289,6 +326,7 @@ final class AppStore: ObservableObject {
         processingTask?.cancel()
         processingTask = nil
         isProcessing = false
+        itemProgress = [:]
     }
 
     /// Lavoro pesante: gira fuori dal main actor.
@@ -296,7 +334,8 @@ final class AppStore: ObservableObject {
         url: URL,
         settings: ConversionSettings,
         using location: MagickLocation,
-        cancellation: MagickCancellation
+        cancellation: MagickCancellation,
+        onProgress: @escaping @Sendable (MagickProgress) -> Void
     ) -> Result<(URL, Int64), Error> {
         do {
             let target = ImageMagick.outputURL(for: url, settings: settings)
@@ -305,7 +344,8 @@ final class AppStore: ObservableObject {
                 output: target,
                 settings: settings,
                 using: location,
-                cancellation: cancellation
+                cancellation: cancellation,
+                onProgress: onProgress
             )
             let attrs = try FileManager.default.attributesOfItem(atPath: produced.path)
             let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
@@ -331,6 +371,7 @@ final class AppStore: ObservableObject {
             items[index].status = .failed
             items[index].errorMessage = error.localizedDescription
         }
+        itemProgress[id] = nil
         processedCount += 1
     }
 
@@ -338,6 +379,7 @@ final class AppStore: ObservableObject {
         isProcessing = false
         processingTask = nil
         batchCancellation = nil
+        itemProgress = [:]
         let done = items.filter { $0.status == .done }
         let failed = items.filter { $0.status == .failed }.count
         let before = done.reduce(Int64(0)) { $0 + $1.originalSize }

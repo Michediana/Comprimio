@@ -12,6 +12,14 @@ struct MagickError: LocalizedError, Sendable {
     var errorDescription: String? { message }
 }
 
+/// Avanzamento riportato da `magick -monitor`.
+struct MagickProgress: Sendable {
+    /// Fase in corso, già tradotta ("carico", "salvo"…).
+    let phase: String
+    /// Frazione 0…1 *della fase*: `magick` riparte da zero a ogni operazione.
+    let fraction: Double
+}
+
 /// Permette di terminare i processi `magick` ancora in corso.
 ///
 /// Annullare un `Task` non tocca i sottoprocessi: senza questo, chiudere
@@ -302,10 +310,12 @@ enum ImageMagick {
         settings: ConversionSettings,
         input: URL,
         output: URL,
-        preview: PreviewQuality? = nil
+        preview: PreviewQuality? = nil,
+        monitor: Bool = false
     ) -> [String] {
         let format = settings.targetFormat(for: input)
-        var args: [String] = [input.path]
+        // `-monitor` è un'impostazione: vale solo per le operazioni che seguono.
+        var args: [String] = monitor ? ["-monitor", input.path] : [input.path]
 
         // Per l'anteprima riduco subito la sorgente: applicare prima le
         // operazioni dell'utente su un file enorme (un ingrandimento al 287%
@@ -473,6 +483,54 @@ enum ImageMagick {
         }
     }
 
+    // MARK: - Avanzamento
+
+    /// Etichette per i tag che `magick` usa nelle righe di `-monitor`.
+    /// Sono decine e cambiano da versione a versione: quelle che contano sono
+    /// le fasi lunghe, il resto ricade su un generico "elaboro".
+    private static let phaseLabels: [String: String] = [
+        "load": "carico",
+        "save": "salvo",
+        "resize": "ridimensiono",
+        "modulate": "regolo i colori",
+        "function": "regolo i colori",
+        "colorspace": "converto il colore",
+        "morphology": "applico i filtri",
+        "sharpen": "applico i filtri",
+        "blur": "applico i filtri",
+        "rotate": "ruoto",
+        "extent": "ritaglio"
+    ]
+
+    /// Interpreta una riga di `-monitor`, del tipo
+    /// `resize image[foto.jpg]: 1200 of 3000, 40% complete`.
+    ///
+    /// La percentuale stampata è troncata all'intero, quindi la frazione arriva
+    /// dai due contatori; il nome del file può contenere qualunque cosa, per cui
+    /// i riferimenti sono `" of "` e `"% complete"`, non le virgole o i due punti.
+    static func parseMonitorLine(_ line: String) -> MagickProgress? {
+        guard let complete = line.range(of: "% complete") else { return nil }
+        let head = line[line.startIndex..<complete.lowerBound]
+        guard let of = head.range(of: " of ", options: .backwards) else { return nil }
+
+        func numbers(_ text: Substring) -> [Double] {
+            text.split(whereSeparator: { !$0.isNumber }).compactMap { Double($0) }
+        }
+        guard let offset = numbers(head[head.startIndex..<of.lowerBound]).last,
+              let extent = numbers(head[of.upperBound...]).first, extent > 0
+        else { return nil }
+
+        let tagEnd = head.firstIndex(where: { $0 == "[" || $0 == ":" }) ?? of.lowerBound
+        let key = head[head.startIndex..<tagEnd]
+            .split(whereSeparator: { $0 == " " || $0 == "/" })
+            .first?.lowercased() ?? ""
+        // I contatori partono da zero: `0 of 3000` è la prima riga di 3000.
+        return MagickProgress(
+            phase: phaseLabels[key] ?? "elaboro",
+            fraction: min(1, (offset + 1) / extent)
+        )
+    }
+
     // MARK: - Esecuzione
 
     struct RunResult: Sendable {
@@ -485,13 +543,15 @@ enum ImageMagick {
     static func run(
         _ location: MagickLocation,
         arguments: [String],
-        cancellation: MagickCancellation? = nil
+        cancellation: MagickCancellation? = nil,
+        onProgress: (@Sendable (MagickProgress) -> Void)? = nil
     ) throws -> RunResult {
         try run(
             location.executable,
             arguments: arguments,
             environment: location.environment,
-            cancellation: cancellation
+            cancellation: cancellation,
+            onProgress: onProgress
         )
     }
 
@@ -500,7 +560,8 @@ enum ImageMagick {
         _ executable: URL,
         arguments: [String],
         environment: [String: String]? = nil,
-        cancellation: MagickCancellation? = nil
+        cancellation: MagickCancellation? = nil,
+        onProgress: (@Sendable (MagickProgress) -> Void)? = nil
     ) throws -> RunResult {
         let process = Process()
         process.executableURL = executable
@@ -519,6 +580,10 @@ enum ImageMagick {
 
         try process.run()
 
+        if let onProgress {
+            return followProgress(process, stdout: outPipe, stderr: errPipe, onProgress: onProgress)
+        }
+
         // Leggi in parallelo all'esecuzione: evita il deadlock sui pipe pieni.
         let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
         let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
@@ -531,6 +596,63 @@ enum ImageMagick {
         )
     }
 
+    /// Consuma lo stderr riga per riga mentre `magick` lavora, riportando
+    /// l'avanzamento e tenendo da parte solo le righe che non lo sono: con
+    /// `-monitor` un errore vero finisce in mezzo a migliaia di aggiornamenti.
+    private static func followProgress(
+        _ process: Process,
+        stdout: Pipe,
+        stderr: Pipe,
+        onProgress: @Sendable (MagickProgress) -> Void
+    ) -> RunResult {
+        // Lo stdout va svuotato comunque: un pipe pieno bloccherebbe `magick`.
+        let collected = DataBox()
+        let group = DispatchGroup()
+        DispatchQueue.global(qos: .utility).async(group: group) {
+            collected.value = stdout.fileHandleForReading.readDataToEndOfFile()
+        }
+
+        let handle = stderr.fileHandleForReading
+        var pending = Data()
+        var message = ""
+        var lastFraction = -1.0
+
+        func consume(_ line: String) {
+            if let progress = parseMonitorLine(line) {
+                // Una riga per riga di pixel: aggiornare la UI a ogni riga
+                // significherebbe migliaia di refresh per immagine.
+                guard abs(progress.fraction - lastFraction) >= 0.01 else { return }
+                lastFraction = progress.fraction
+                onProgress(progress)
+            } else if !line.trimmingCharacters(in: .whitespaces).isEmpty {
+                message += line + "\n"
+            }
+        }
+
+        while true {
+            let chunk = handle.availableData
+            if chunk.isEmpty { break }
+            pending.append(chunk)
+            // `-monitor` riscrive la stessa riga con un ritorno a capo singolo.
+            // Il taglio avviene sui byte perché un chunk può spezzare un UTF-8
+            // a metà, e decodificarlo così perderebbe l'intero pezzo.
+            while let end = pending.firstIndex(where: { $0 == 0x0A || $0 == 0x0D }) {
+                consume(String(decoding: Data(pending[pending.startIndex..<end])))
+                pending = Data(pending[pending.index(after: end)...])
+            }
+        }
+        consume(String(decoding: pending))
+
+        group.wait()
+        process.waitUntilExit()
+
+        return RunResult(
+            exitCode: process.terminationStatus,
+            standardOutput: String(decoding: collected.value),
+            standardError: message
+        )
+    }
+
     /// Converte un file e restituisce l'URL prodotto.
     static func convert(
         input: URL,
@@ -538,7 +660,8 @@ enum ImageMagick {
         settings: ConversionSettings,
         using location: MagickLocation,
         preview: PreviewQuality? = nil,
-        cancellation: MagickCancellation? = nil
+        cancellation: MagickCancellation? = nil,
+        onProgress: (@Sendable (MagickProgress) -> Void)? = nil
     ) throws -> URL {
         try FileManager.default.createDirectory(
             at: output.deletingLastPathComponent(),
@@ -549,8 +672,19 @@ enum ImageMagick {
             ? output
             : uniqueURL(output)
 
-        let args = arguments(settings: settings, input: input, output: destination, preview: preview)
-        let result = try run(location, arguments: args, cancellation: cancellation)
+        let args = arguments(
+            settings: settings,
+            input: input,
+            output: destination,
+            preview: preview,
+            monitor: onProgress != nil
+        )
+        let result = try run(
+            location,
+            arguments: args,
+            cancellation: cancellation,
+            onProgress: onProgress
+        )
 
         if cancellation?.cancelled == true {
             throw MagickError(message: "Operazione annullata.")
@@ -560,6 +694,17 @@ enum ImageMagick {
             throw MagickError(message: stderr.isEmpty ? "magick è terminato con codice \(result.exitCode)." : stderr)
         }
         return destination
+    }
+}
+
+/// Scatola per passare dei byte tra il thread che legge lo stdout e chi aspetta.
+private final class DataBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = Data()
+
+    var value: Data {
+        get { lock.lock(); defer { lock.unlock() }; return storage }
+        set { lock.lock(); storage = newValue; lock.unlock() }
     }
 }
 
