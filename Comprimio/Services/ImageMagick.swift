@@ -361,6 +361,13 @@ enum ImageMagick {
             args += ["-resize", "\(fit)x\(fit)>"]
         }
 
+        // 5b. Filigrana dopo il ridimensionamento: le sue misure sono percentuali
+        // dell'immagine, quindi vanno calcolate su quella finale (e sull'anteprima
+        // ridotta). Dopo le regolazioni di colore, così un logo resta a colori
+        // anche convertendo la foto in scala di grigi; prima dell'appiattimento,
+        // perché è la trasparenza a fonderla con lo sfondo.
+        args += watermarkArguments(settings.watermark)
+
         // 6. Trasparenza: appiattisci se richiesto o se il formato non la supporta.
         if settings.flattenAlpha || !format.supportsAlpha {
             args += ["-background", settings.flattenColorHex, "-alpha", "remove", "-alpha", "off"]
@@ -389,6 +396,96 @@ enum ImageMagick {
         } else {
             args += [output.path]
         }
+        return args
+    }
+
+    // MARK: - Filigrana
+
+    /// Sovrapposizione di un logo o di un testo.
+    ///
+    /// Tutte le misure sono percentuali della larghezza dell'immagine e vengono
+    /// risolte da `magick` con `%[fx:…]` al momento della conversione, non qui:
+    /// così la stessa riga di comando vale per un 6000×4000 e per l'anteprima
+    /// ridotta, e la filigrana risulta proporzionata in entrambe senza che
+    /// l'app debba prevedere le dimensioni di uscita.
+    static func watermarkArguments(_ w: WatermarkSettings) -> [String] {
+        guard w.isEffective else { return [] }
+
+        func percent(_ value: Double) -> String { String(format: "%.6f", value / 100) }
+
+        // Le opzioni si impostano sull'immagine di partenza, dove `w` e `h`
+        // esistono; dentro le parentesi sono già semplici valori da rileggere.
+        var args: [String] = [
+            "-set", "option:cwmsize", "%[fx:max(1,round(w*\(percent(w.scale))))]",
+            "-set", "option:cwmmargin", "%[fx:round(w*\(percent(w.margin)))]"
+        ]
+        if w.tile {
+            args += [
+                "-set", "option:cwmgap", "%[fx:max(1,round(w*\(percent(w.scale * w.tileGap / 100))))]",
+                "-set", "option:cwmw", "%[fx:w]",
+                "-set", "option:cwmh", "%[fx:h]"
+            ]
+        }
+        if w.mode == .text, w.outline {
+            args += ["-set", "option:cwmstroke", "%[fx:max(1,round(w*0.0015))]"]
+        }
+
+        // La filigrana si costruisce in una lista a parte: `-font`, `-fill` e
+        // `-pointsize` non devono restare attaccati all'immagine di partenza.
+        args.append("(")
+        switch w.mode {
+        case .none:
+            return []
+        case .image:
+            args += [w.imagePath, "-resize", "%[cwmsize]x"]
+        case .text:
+            args += ["-background", "none"]
+            if let font = w.fontFileURL { args += ["-font", font.path] }
+            args += ["-fill", w.colorHex, "-pointsize", "%[cwmsize]"]
+            if w.outline {
+                args += ["-stroke", "#000000", "-strokewidth", "%[cwmstroke]"]
+            }
+            args.append("label:" + w.escapedText)
+        }
+
+        if w.rotation != 0 {
+            // Senza sfondo trasparente la rotazione riempirebbe di bianco gli
+            // angoli aggiunti dal riquadro ruotato.
+            args += ["-background", "none", "-rotate", String(format: "%g", w.rotation)]
+        }
+
+        if w.tile {
+            // Il distacco fra le ripetizioni è un bordo trasparente attorno alla
+            // filigrana; `tile:` riempie poi una tela delle dimensioni esatte
+            // dell'immagine, che viene sovrapposta in un colpo solo.
+            args += ["-bordercolor", "none", "-border", "%[cwmgap]"]
+        }
+        if w.opacity < 99.5 {
+            args += [
+                "-alpha", "set", "-channel", "A",
+                "-evaluate", "multiply", String(format: "%.4f", max(0, w.opacity / 100)),
+                "+channel"
+            ]
+        }
+        if w.tile {
+            args += [
+                "-write", "mpr:comprimio-watermark", "+delete",
+                "-size", "%[cwmw]x%[cwmh]", "tile:mpr:comprimio-watermark"
+            ]
+        }
+        args.append(")")
+
+        let axes = w.position.marginAxes
+        let offsetX = w.tile || !axes.x ? "0" : "%[cwmmargin]"
+        let offsetY = w.tile || !axes.y ? "0" : "%[cwmmargin]"
+        args += [
+            "-gravity", w.tile ? "NorthWest" : w.position.gravity,
+            "-geometry", "+\(offsetX)+\(offsetY)",
+            "-compose", "over", "-composite",
+            // `-gravity` è un'impostazione che resterebbe attiva: azzerarla evita
+            // che influenzi qualunque operazione aggiunta più avanti.
+            "+gravity"
+        ]
         return args
     }
 

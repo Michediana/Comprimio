@@ -10,6 +10,7 @@ import AppKit
 import Combine
 import ImageIO
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Risultato di una conversione di anteprima, trasferibile fra i task.
 struct PreviewOutput: Sendable {
@@ -202,6 +203,19 @@ final class AppStore: ObservableObject {
         if panel.runModal() == .OK, let url = panel.url {
             settings.customFolderPath = url.path
             settings.destination = .customFolder
+        }
+    }
+
+    func chooseWatermarkImage() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+        panel.prompt = "Usa"
+        panel.message = "Scegli il logo da sovrapporre. Un PNG con sfondo trasparente dà il risultato migliore."
+        if panel.runModal() == .OK, let url = panel.url {
+            settings.watermark.imagePath = url.path
         }
     }
 

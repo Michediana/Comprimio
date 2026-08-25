@@ -444,12 +444,48 @@ struct WarningText: View {
     }
 }
 
-/// Selettore di colore con campo esadecimale, per l'appiattimento della trasparenza.
+/// Griglia 3×3 per l'ancora della filigrana: nove `-gravity` in un menu
+/// sarebbero nove voci da leggere, qui la posizione si vede.
+struct PositionGrid: View {
+    @Binding var selection: WatermarkPosition
+
+    private let rows: [[WatermarkPosition]] = [
+        [.topLeft, .top, .topRight],
+        [.left, .center, .right],
+        [.bottomLeft, .bottom, .bottomRight]
+    ]
+
+    var body: some View {
+        LabeledContent("Posizione") {
+            VStack(spacing: 3) {
+                ForEach(rows.indices, id: \.self) { row in
+                    HStack(spacing: 3) {
+                        ForEach(rows[row]) { position in
+                            let selected = position == selection
+                            Button {
+                                selection = position
+                            } label: {
+                                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                    .fill(selected ? Color.accentColor : Color.secondary.opacity(0.2))
+                                    .frame(width: 24, height: 16)
+                            }
+                            .buttonStyle(.plain)
+                            .help(position.label)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Selettore di colore con campo esadecimale.
 struct HexColorField: View {
+    var title: String = "Colore di sfondo"
     @Binding var hex: String
 
     var body: some View {
-        LabeledContent("Colore di sfondo") {
+        LabeledContent(title) {
             HStack(spacing: 8) {
                 ColorPicker("", selection: Binding(
                     get: { Color(nsColor: NSColor(hex: hex) ?? .white) },

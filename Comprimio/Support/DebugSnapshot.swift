@@ -19,7 +19,7 @@ enum DebugSnapshot {
     static func runIfRequested() {
         let env = ProcessInfo.processInfo.environment
         guard let directory = env["COMPRIMIO_SNAPSHOT"] else { return }
-        let tabs = (env["COMPRIMIO_TABS"] ?? "conversion,resize,adjust,destination")
+        let tabs = (env["COMPRIMIO_TABS"] ?? "conversion,resize,adjust,watermark,destination")
             .split(separator: ",")
             .map(String.init)
 

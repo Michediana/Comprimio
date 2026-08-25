@@ -2,13 +2,14 @@
 //  SettingsPane.swift
 //  Comprimio
 //
-//  Colonna destra a schede: Conversione, Ridimensiona, Regolazioni, Destinazione.
+//  Colonna destra a schede: Conversione, Ridimensiona, Regolazioni,
+//  Filigrana, Destinazione.
 //
 
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case conversion, resize, adjust, destination
+    case conversion, resize, adjust, watermark, destination
 
     var id: String { rawValue }
 
@@ -17,7 +18,56 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .conversion: return "Conversione"
         case .resize: return "Ridimensiona"
         case .adjust: return "Regolazioni"
+        case .watermark: return "Filigrana"
         case .destination: return "Destinazione"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .conversion: return "arrow.2.squarepath"
+        case .resize: return "aspectratio"
+        case .adjust: return "slider.horizontal.3"
+        case .watermark: return "signature"
+        case .destination: return "folder"
+        }
+    }
+}
+
+/// Barra delle schede con icona e didascalia impilate.
+///
+/// A cinque voci il `Picker` segmentato non basta più: nella colonna al minimo
+/// della sua larghezza le etichette venivano troncate a «Conve…».
+private struct SettingsTabBar: View {
+    @Binding var selection: SettingsTab
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(SettingsTab.allCases) { tab in
+                let selected = tab == selection
+                Button {
+                    selection = tab
+                } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 14))
+                        Text(tab.label)
+                            .font(.caption2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+                    .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(selected ? Color.accentColor.opacity(0.14) : Color.clear)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(tab.label)
+            }
         }
     }
 }
@@ -28,17 +78,14 @@ struct SettingsPane: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Picker("", selection: $tab) {
-                ForEach(SettingsTab.allCases) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            SettingsTabBar(selection: $tab)
 
             Form {
                 switch tab {
                 case .conversion: ConversionTab()
                 case .resize: ResizeTab()
                 case .adjust: AdjustTab()
+                case .watermark: WatermarkTab()
                 case .destination: DestinationTab()
                 }
             }
@@ -316,6 +363,133 @@ private struct AdjustTab: View {
             store.settings = s
         }
         .glassButton()
+    }
+}
+
+// MARK: - Filigrana
+
+private struct WatermarkTab: View {
+    @EnvironmentObject private var store: AppStore
+
+    private var watermark: WatermarkSettings { store.settings.watermark }
+
+    var body: some View {
+        SettingsGroup("Filigrana") {
+            Picker("Tipo", selection: $store.settings.watermark.mode) {
+                ForEach(WatermarkMode.allCases) { Text($0.label).tag($0) }
+            }
+            if watermark.mode == .none {
+                HelpText("Nessuna sovrapposizione: le immagini escono come sono.")
+            }
+        }
+
+        if watermark.mode == .image {
+            SettingsGroup("Logo") {
+                LabeledContent("File") {
+                    HStack(spacing: 6) {
+                        Text(watermark.imagePath.isEmpty
+                             ? "Nessun file scelto"
+                             : (watermark.imageURL?.lastPathComponent ?? watermark.imagePath))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundStyle(watermark.imagePath.isEmpty ? .secondary : .primary)
+                        Button("Scegli…") { store.chooseWatermarkImage() }
+                            .controlSize(.small)
+                        if !watermark.imagePath.isEmpty {
+                            Button("Rimuovi") { store.settings.watermark.imagePath = "" }
+                                .controlSize(.small)
+                        }
+                    }
+                }
+                ValueSlider(
+                    title: "Larghezza",
+                    value: $store.settings.watermark.imageScale,
+                    range: 1...100,
+                    step: 1,
+                    suffix: "%"
+                )
+                HelpText("Percentuale della larghezza dell'immagine: lo stesso logo resta "
+                    + "proporzionato su file di dimensioni diverse. Un PNG con sfondo "
+                    + "trasparente dà il risultato migliore.")
+            }
+        }
+
+        if watermark.mode == .text {
+            SettingsGroup("Testo") {
+                LabeledContent("Testo") {
+                    TextBox(text: $store.settings.watermark.text, placeholder: "© Studio 2026", width: 190)
+                }
+                Picker("Carattere", selection: $store.settings.watermark.fontFamily) {
+                    ForEach(WatermarkSettings.availableFontFamilies, id: \.self) { Text($0).tag($0) }
+                }
+                HexColorField(title: "Colore", hex: $store.settings.watermark.colorHex)
+                Toggle("Contorno scuro", isOn: $store.settings.watermark.outline)
+                ValueSlider(
+                    title: "Corpo del carattere",
+                    value: $store.settings.watermark.textScale,
+                    range: 1...25,
+                    step: 0.5,
+                    suffix: "%",
+                    decimals: 1
+                )
+                HelpText("Il corpo è una percentuale della larghezza dell'immagine. "
+                    + "Il contorno serve a tenere il testo leggibile anche sopra "
+                    + "una zona chiara.")
+            }
+        }
+
+        if watermark.mode != .none {
+            SettingsGroup("Collocazione") {
+                Toggle("Ripeti a mosaico su tutta l'immagine", isOn: $store.settings.watermark.tile)
+
+                if watermark.tile {
+                    ValueSlider(
+                        title: "Distanza fra le ripetizioni",
+                        value: $store.settings.watermark.tileGap,
+                        range: 0...300,
+                        step: 5,
+                        suffix: "%"
+                    )
+                    HelpText("Percentuale della dimensione della filigrana.")
+                } else {
+                    PositionGrid(selection: $store.settings.watermark.position)
+                    ValueSlider(
+                        title: "Margine dal bordo",
+                        value: $store.settings.watermark.margin,
+                        range: 0...20,
+                        step: 0.5,
+                        suffix: "%",
+                        decimals: 1
+                    )
+                    .disabled(watermark.position == .center)
+                }
+
+                ValueSlider(
+                    title: "Rotazione",
+                    value: $store.settings.watermark.rotation,
+                    range: -90...90,
+                    step: 5,
+                    suffix: "°"
+                )
+            }
+
+            SettingsGroup("Resa") {
+                ValueSlider(
+                    title: "Opacità",
+                    value: $store.settings.watermark.opacity,
+                    range: 5...100,
+                    step: 1,
+                    suffix: "%"
+                )
+                if let problem = watermark.problem {
+                    WarningText(problem)
+                } else {
+                    HelpText("La filigrana viene applicata dopo il ridimensionamento e le "
+                        + "regolazioni di colore: resta proporzionata all'immagine finale "
+                        + "e un logo a colori non viene toccato dalla scala di grigi.")
+                }
+            }
+        }
     }
 }
 

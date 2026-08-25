@@ -48,6 +48,9 @@ struct ConversionSettings: Codable, Equatable {
     var blur: Double = 0            // 0…5
     var grayscale: Bool = false
 
+    // MARK: - Filigrana
+    var watermark = WatermarkSettings()
+
     // MARK: - Destinazione
     var destination: DestinationMode = .subfolder
     var customFolderPath: String = ""
@@ -70,10 +73,39 @@ struct ConversionSettings: Codable, Equatable {
     private static let key = "conversionSettings"
 
     static func load() -> ConversionSettings {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              let decoded = try? JSONDecoder().decode(ConversionSettings.self, from: data)
+        guard let data = UserDefaults.standard.data(forKey: key) else { return ConversionSettings() }
+        if let decoded = try? JSONDecoder().decode(ConversionSettings.self, from: data) {
+            return decoded
+        }
+        // Il decoder sintetizzato di Swift *non* usa i valori di default per le
+        // chiavi mancanti: fallisce. Senza questo recupero, aggiungere una sola
+        // impostazione all'app azzererebbe tutte quelle già salvate dall'utente.
+        guard let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let defaults = try? JSONSerialization.jsonObject(
+                  with: JSONEncoder().encode(ConversionSettings())
+              ) as? [String: Any],
+              let merged = try? JSONSerialization.data(withJSONObject: merging(defaults, with: saved)),
+              let decoded = try? JSONDecoder().decode(ConversionSettings.self, from: merged)
         else { return ConversionSettings() }
         return decoded
+    }
+
+    /// I valori salvati hanno la precedenza; le chiavi che mancano arrivano dai
+    /// default. Ricorsivo, così vale anche per i gruppi annidati (la filigrana).
+    private static func merging(
+        _ defaults: [String: Any],
+        with saved: [String: Any]
+    ) -> [String: Any] {
+        var result = defaults
+        for (key, value) in saved {
+            if let nested = value as? [String: Any],
+               let base = defaults[key] as? [String: Any] {
+                result[key] = merging(base, with: nested)
+            } else {
+                result[key] = value
+            }
+        }
+        return result
     }
 
     func save() {
