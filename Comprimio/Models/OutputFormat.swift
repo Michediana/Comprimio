@@ -167,12 +167,14 @@ struct OutputFormat: Identifiable, Hashable, Codable {
     static let all: [OutputFormat] = [
         keepOriginal,
 
-        // Web e uso comune
-        jpeg, png, webp, avif, heic,
-        OutputFormat("heif", "HEIF", magick: "HEIF", ext: "heif", .common,
-                     family: .heic, quality: true, alpha: true),
+        // Web e uso comune. L'ordine è quello del menu: il JPEG XL sta
+        // subito dopo il JPEG, di cui è il successore.
+        jpeg,
         OutputFormat("jxl", "JPEG XL", magick: "JXL", ext: "jxl", .common,
                      family: .jxl, quality: true, alpha: true, lossless: true),
+        png, webp, avif, heic,
+        OutputFormat("heif", "HEIF", magick: "HEIF", ext: "heif", .common,
+                     family: .heic, quality: true, alpha: true),
         gif,
         tiff, bmp,
 
