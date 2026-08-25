@@ -15,10 +15,10 @@ enum ProcessingStatus: String, Hashable {
 
     var label: String {
         switch self {
-        case .pending: return "In attesa"
-        case .processing: return "In corso…"
-        case .done: return "Completato"
-        case .failed: return "Errore"
+        case .pending: return String(localized: "Pending")
+        case .processing: return String(localized: "In progress…")
+        case .done: return String(localized: "Done")
+        case .failed: return String(localized: "Error")
         }
     }
 

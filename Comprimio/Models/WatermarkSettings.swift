@@ -18,9 +18,11 @@ enum WatermarkMode: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .none: return "Nessuna"
-        case .image: return "Logo"
-        case .text: return "Testo"
+        // Chiave esplicita: in altre lingue «nessuna filigrana» e «nessuna
+        // rotazione» non concordano allo stesso modo.
+        case .none: return String(localized: "watermark.mode.none", defaultValue: "None")
+        case .image: return String(localized: "Logo")
+        case .text: return String(localized: "Text")
         }
     }
 }
@@ -49,15 +51,15 @@ enum WatermarkPosition: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .topLeft: return "In alto a sinistra"
-        case .top: return "In alto al centro"
-        case .topRight: return "In alto a destra"
-        case .left: return "A sinistra"
-        case .center: return "Al centro"
-        case .right: return "A destra"
-        case .bottomLeft: return "In basso a sinistra"
-        case .bottom: return "In basso al centro"
-        case .bottomRight: return "In basso a destra"
+        case .topLeft: return String(localized: "Top left")
+        case .top: return String(localized: "Top center")
+        case .topRight: return String(localized: "Top right")
+        case .left: return String(localized: "Left")
+        case .center: return String(localized: "Center")
+        case .right: return String(localized: "Right")
+        case .bottomLeft: return String(localized: "Bottom left")
+        case .bottom: return String(localized: "Bottom center")
+        case .bottomRight: return String(localized: "Bottom right")
         }
     }
 
@@ -127,14 +129,18 @@ struct WatermarkSettings: Codable, Equatable {
         case .none:
             return nil
         case .image:
-            if imagePath.isEmpty { return "Scegli il file del logo." }
+            if imagePath.isEmpty { return String(localized: "Choose the logo file.") }
             if !FileManager.default.isReadableFile(atPath: imagePath) {
-                return "Il file del logo non è più leggibile: \(imagePath)"
+                return String(localized: "The logo file is no longer readable: \(imagePath)")
             }
             return nil
         case .text:
-            if text.trimmingCharacters(in: .whitespaces).isEmpty { return "Scrivi il testo da sovrapporre." }
-            if fontFileURL == nil { return "Il carattere «\(fontFamily)» non è disponibile." }
+            if text.trimmingCharacters(in: .whitespaces).isEmpty {
+                return String(localized: "Type the text to overlay.")
+            }
+            if fontFileURL == nil {
+                return String(localized: "The font “\(fontFamily)” is not available.")
+            }
             return nil
         }
     }

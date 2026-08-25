@@ -43,32 +43,32 @@ struct ComprimioApp: App {
         .defaultSize(width: 1180, height: 800)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("Aggiungi immagini…") {
+                Button("Add Images…") {
                     store.presentOpenPanel(directories: false)
                 }
                 .keyboardShortcut("o")
 
-                Button("Aggiungi cartella…") {
+                Button("Add Folder…") {
                     store.presentOpenPanel(directories: true)
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
             }
 
-            CommandMenu("Elabora") {
-                Button("Converti") { store.startProcessing() }
+            CommandMenu("Process") {
+                Button("Convert") { store.startProcessing() }
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(store.items.isEmpty || store.install == nil || store.isProcessing)
 
-                Button("Annulla elaborazione") { store.cancelProcessing() }
+                Button("Cancel Processing") { store.cancelProcessing() }
                     .keyboardShortcut(".", modifiers: .command)
                     .disabled(!store.isProcessing)
 
                 Divider()
 
-                Button("Aggiorna anteprima") { store.refreshPreview() }
+                Button("Refresh Preview") { store.refreshPreview() }
                     .keyboardShortcut("r")
 
-                Button("Svuota lista") { store.removeAll() }
+                Button("Clear List") { store.removeAll() }
                     .disabled(store.items.isEmpty)
             }
         }

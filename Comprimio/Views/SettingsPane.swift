@@ -15,11 +15,11 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .conversion: return "Conversione"
-        case .resize: return "Ridimensiona"
-        case .adjust: return "Regolazioni"
-        case .watermark: return "Filigrana"
-        case .destination: return "Destinazione"
+        case .conversion: return String(localized: "Conversion")
+        case .resize: return String(localized: "Resize")
+        case .adjust: return String(localized: "Adjust")
+        case .watermark: return String(localized: "Watermark")
+        case .destination: return String(localized: "Destination")
         }
     }
 
@@ -118,8 +118,8 @@ private struct ConversionTab: View {
     }
 
     var body: some View {
-        SettingsGroup("Formato di destinazione") {
-            Picker("Formato", selection: $store.settings.outputFormat) {
+        SettingsGroup("Output format") {
+            Picker("Format", selection: $store.settings.outputFormat) {
                 Text(OutputFormat.keepOriginal.label).tag(OutputFormat.keepOriginal)
                 ForEach(availableGroups, id: \.category) { group in
                     Section(group.category.label) {
@@ -129,20 +129,20 @@ private struct ConversionTab: View {
             }
 
             if store.settings.outputFormat == .keepOriginal {
-                HelpText("Ogni immagine mantiene il suo formato; cambiano solo qualità e opzioni scelte qui sotto.")
+                HelpText("Every image keeps its own format; only the quality and the options chosen below change.")
             } else if let install = store.install, !install.supports(store.settings.outputFormat) {
-                WarningText("Questa installazione di ImageMagick non può scrivere \(store.settings.outputFormat.label).")
+                WarningText("This ImageMagick installation cannot write \(store.settings.outputFormat.label).")
             }
         }
 
-        SettingsGroup("Compressione") {
+        SettingsGroup("Compression") {
             if format.supportsLossless {
-                Toggle("Senza perdita di qualità", isOn: $store.settings.lossless)
+                Toggle("Lossless", isOn: $store.settings.lossless)
             }
 
             if format.supportsQuality {
                 ValueSlider(
-                    title: "Qualità",
+                    title: "Quality",
                     value: $store.settings.quality,
                     range: 1...Double(format.maxQuality),
                     step: 1,
@@ -152,33 +152,32 @@ private struct ConversionTab: View {
                 .onChange(of: format.maxQuality) { limit in
                     store.settings.quality = min(store.settings.quality, Double(limit))
                 }
-                HelpText(qualityHint)
+                HelpText(verbatim: qualityHint)
                 if format == .avif {
-                    HelpText("L'AVIF si ferma a qualità 99: il codificatore incluso "
-                        + "non è in grado di produrre AVIF senza perdita.")
+                    HelpText("AVIF stops at quality 99: the bundled encoder cannot produce lossless AVIF.")
                 }
             } else {
-                HelpText("\(format.label) non prevede un'impostazione di qualità.")
+                HelpText("\(format.label) has no quality setting.")
             }
 
-            Toggle("Mantieni metadati (EXIF, IPTC, XMP)", isOn: $store.settings.keepMetadata)
-            Toggle("Converti in sRGB", isOn: $store.settings.convertToSRGB)
+            Toggle("Keep metadata (EXIF, IPTC, XMP)", isOn: $store.settings.keepMetadata)
+            Toggle("Convert to sRGB", isOn: $store.settings.convertToSRGB)
         }
 
         if format.family == .jpeg {
-            SettingsGroup("Opzioni JPEG") {
-                Toggle("JPEG progressivo", isOn: $store.settings.jpegProgressive)
-                Picker("Sottocampionamento croma", selection: $store.settings.chromaSubsampling) {
+            SettingsGroup("JPEG options") {
+                Toggle("Progressive JPEG", isOn: $store.settings.jpegProgressive)
+                Picker("Chroma subsampling", selection: $store.settings.chromaSubsampling) {
                     ForEach(ChromaSubsampling.allCases) { Text($0.label).tag($0) }
                 }
-                HelpText("4:2:0 riduce il peso; 4:4:4 conserva i dettagli di colore (testo, grafica).")
+                HelpText("4:2:0 reduces file size; 4:4:4 preserves color detail (text, graphics).")
             }
         }
 
         if format.family == .png {
-            SettingsGroup("Opzioni PNG") {
+            SettingsGroup("PNG options") {
                 ValueSlider(
-                    title: "Livello di compressione",
+                    title: "Compression level",
                     value: Binding(
                         get: { Double(store.settings.pngCompressionLevel) },
                         set: { store.settings.pngCompressionLevel = Int($0) }
@@ -188,16 +187,16 @@ private struct ConversionTab: View {
                     suffix: ""
                 )
                 if format == .png {
-                    Toggle("Palette a 8 bit (PNG8)", isOn: $store.settings.pngPalette)
-                    HelpText("PNG8 riduce molto il peso su immagini con pochi colori.")
+                    Toggle("8-bit palette (PNG8)", isOn: $store.settings.pngPalette)
+                    HelpText("PNG8 greatly reduces file size on images with few colors.")
                 }
             }
         }
 
         if format.family == .webp {
-            SettingsGroup("Opzioni WebP") {
+            SettingsGroup("WebP options") {
                 ValueSlider(
-                    title: "Metodo (lento = più compresso)",
+                    title: "Method (slower = smaller)",
                     value: Binding(
                         get: { Double(store.settings.webpMethod) },
                         set: { store.settings.webpMethod = Int($0) }
@@ -210,9 +209,9 @@ private struct ConversionTab: View {
         }
 
         if format.family == .jxl {
-            SettingsGroup("Opzioni JPEG XL") {
+            SettingsGroup("JPEG XL options") {
                 ValueSlider(
-                    title: "Sforzo (lento = più compresso)",
+                    title: "Effort (slower = smaller)",
                     value: Binding(
                         get: { Double(store.settings.jxlEffort) },
                         set: { store.settings.jxlEffort = Int($0) }
@@ -221,19 +220,20 @@ private struct ConversionTab: View {
                     step: 1,
                     suffix: ""
                 )
-                HelpText("Lo sforzo influisce solo sul tempo di codifica. "
-                    + "«Senza perdita» corrisponde alla qualità 100: pesa più "
-                    + "di un JPEG XL compresso, ma molto meno di un PNG.")
+                HelpText("""
+                    Effort only affects encoding time. “Lossless” matches quality 100: \
+                    larger than a compressed JPEG XL, but far smaller than a PNG.
+                    """)
             }
         }
 
-        SettingsGroup("Trasparenza") {
-            Toggle("Appiattisci su colore di sfondo", isOn: $store.settings.flattenAlpha)
+        SettingsGroup("Transparency") {
+            Toggle("Flatten onto a background color", isOn: $store.settings.flattenAlpha)
                 .disabled(!format.supportsAlpha)
             HexColorField(hex: $store.settings.flattenColorHex)
                 .disabled(!store.settings.flattenAlpha && format.supportsAlpha)
             if !format.supportsAlpha {
-                HelpText("\(format.label) non supporta la trasparenza: viene appiattita automaticamente.")
+                HelpText("\(format.label) does not support transparency: it is flattened automatically.")
             }
         }
     }
@@ -257,10 +257,10 @@ private struct ConversionTab: View {
     private var qualityHint: String {
         let q = Int(store.settings.quality)
         switch q {
-        case 90...100: return "Qualità massima, risparmio ridotto."
-        case 75..<90: return "Compromesso consigliato per il web."
-        case 50..<75: return "Peso ridotto, artefatti visibili sui dettagli."
-        default: return "Compressione aggressiva: forte perdita di qualità."
+        case 90...100: return String(localized: "Top quality, little saving.")
+        case 75..<90: return String(localized: "Recommended trade-off for the web.")
+        case 50..<75: return String(localized: "Smaller files, artifacts visible on fine detail.")
+        default: return String(localized: "Aggressive compression: heavy quality loss.")
         }
     }
 }
@@ -271,50 +271,50 @@ private struct ResizeTab: View {
     @EnvironmentObject private var store: AppStore
 
     var body: some View {
-        SettingsGroup("Ridimensionamento") {
-            Picker("Modalità", selection: $store.settings.resizeMode) {
+        SettingsGroup("Resizing") {
+            Picker("Mode", selection: $store.settings.resizeMode) {
                 ForEach(ResizeMode.allCases) { Text($0.label).tag($0) }
             }
 
             switch store.settings.resizeMode {
             case .none:
-                HelpText("Le dimensioni in pixel restano invariate.")
+                HelpText("The pixel dimensions stay unchanged.")
             case .percent:
-                ValueSlider(title: "Scala", value: $store.settings.percent, range: 1...400, step: 1, suffix: "%")
+                ValueSlider(title: "Scale", value: $store.settings.percent, range: 1...400, step: 1, suffix: "%")
             case .fit, .exact, .fill:
-                IntField(title: "Larghezza", value: $store.settings.width, suffix: "px")
-                IntField(title: "Altezza", value: $store.settings.height, suffix: "px")
+                IntField(title: "Width", value: $store.settings.width, suffix: "px")
+                IntField(title: "Height", value: $store.settings.height, suffix: "px")
             case .width:
-                IntField(title: "Larghezza", value: $store.settings.width, suffix: "px")
+                IntField(title: "Width", value: $store.settings.width, suffix: "px")
             case .height:
-                IntField(title: "Altezza", value: $store.settings.height, suffix: "px")
+                IntField(title: "Height", value: $store.settings.height, suffix: "px")
             }
 
             if store.settings.resizeMode != .none {
                 if store.settings.resizeMode != .exact && store.settings.resizeMode != .fill {
-                    Toggle("Non ingrandire le immagini più piccole", isOn: $store.settings.doNotEnlarge)
+                    Toggle("Do not enlarge smaller images", isOn: $store.settings.doNotEnlarge)
                 }
-                Picker("Filtro di ricampionamento", selection: $store.settings.resizeFilter) {
+                Picker("Resampling filter", selection: $store.settings.resizeFilter) {
                     ForEach(ResizeFilter.allCases) { Text($0.label).tag($0) }
                 }
-                HelpText(hint)
+                HelpText(verbatim: hint)
             }
         }
 
-        SettingsGroup("Risoluzione di stampa") {
-            Toggle("Imposta DPI", isOn: $store.settings.applyDPI)
+        SettingsGroup("Print resolution") {
+            Toggle("Set DPI", isOn: $store.settings.applyDPI)
             IntField(title: "DPI", value: $store.settings.dpi, suffix: "ppi")
                 .disabled(!store.settings.applyDPI)
-            HelpText("Modifica solo i metadati di densità, non il numero di pixel.")
+            HelpText("Changes only the density metadata, not the number of pixels.")
         }
     }
 
     private var hint: String {
         switch store.settings.resizeMode {
-        case .fit: return "L'immagine rientra nel rettangolo mantenendo le proporzioni."
-        case .fill: return "L'immagine copre il rettangolo e viene ritagliata al centro."
-        case .exact: return "Le proporzioni non vengono rispettate: l'immagine può deformarsi."
-        default: return "Le proporzioni originali vengono mantenute."
+        case .fit: return String(localized: "The image fits inside the box, keeping its aspect ratio.")
+        case .fill: return String(localized: "The image covers the box and is cropped at the center.")
+        case .exact: return String(localized: "The aspect ratio is not preserved: the image may be distorted.")
+        default: return String(localized: "The original aspect ratio is preserved.")
         }
     }
 }
@@ -325,30 +325,30 @@ private struct AdjustTab: View {
     @EnvironmentObject private var store: AppStore
 
     var body: some View {
-        SettingsGroup("Orientamento") {
-            Toggle("Applica l'orientamento EXIF", isOn: $store.settings.autoOrient)
-            Picker("Rotazione", selection: $store.settings.rotation) {
+        SettingsGroup("Orientation") {
+            Toggle("Apply the EXIF orientation", isOn: $store.settings.autoOrient)
+            Picker("Rotation", selection: $store.settings.rotation) {
                 ForEach(Rotation.allCases) { Text($0.label).tag($0) }
             }
-            Toggle("Rifletti orizzontalmente", isOn: $store.settings.flipHorizontal)
-            Toggle("Rifletti verticalmente", isOn: $store.settings.flipVertical)
+            Toggle("Flip horizontally", isOn: $store.settings.flipHorizontal)
+            Toggle("Flip vertically", isOn: $store.settings.flipVertical)
         }
 
-        SettingsGroup("Colore") {
-            ValueSlider(title: "Luminosità", value: $store.settings.brightness, range: -100...100, step: 1, suffix: "")
-            ValueSlider(title: "Contrasto", value: $store.settings.contrast, range: -100...100, step: 1, suffix: "")
-            ValueSlider(title: "Saturazione", value: $store.settings.saturation, range: -100...100, step: 1, suffix: "")
+        SettingsGroup("Color") {
+            ValueSlider(title: "Brightness", value: $store.settings.brightness, range: -100...100, step: 1, suffix: "")
+            ValueSlider(title: "Contrast", value: $store.settings.contrast, range: -100...100, step: 1, suffix: "")
+            ValueSlider(title: "Saturation", value: $store.settings.saturation, range: -100...100, step: 1, suffix: "")
                 .disabled(store.settings.grayscale)
-            Toggle("Scala di grigi", isOn: $store.settings.grayscale)
+            Toggle("Grayscale", isOn: $store.settings.grayscale)
         }
 
-        SettingsGroup("Dettaglio") {
-            ValueSlider(title: "Nitidezza", value: $store.settings.sharpen, range: 0...5, step: 0.1, suffix: "", decimals: 1)
-            ValueSlider(title: "Sfocatura", value: $store.settings.blur, range: 0...5, step: 0.1, suffix: "", decimals: 1)
-            HelpText("Un po' di nitidezza recupera i dettagli persi dopo un ridimensionamento forte.")
+        SettingsGroup("Detail") {
+            ValueSlider(title: "Sharpen", value: $store.settings.sharpen, range: 0...5, step: 0.1, suffix: "", decimals: 1)
+            ValueSlider(title: "Blur", value: $store.settings.blur, range: 0...5, step: 0.1, suffix: "", decimals: 1)
+            HelpText("A little sharpening recovers detail lost after a heavy downscale.")
         }
 
-        Button("Azzera le regolazioni") {
+        Button("Reset adjustments") {
             var s = store.settings
             let defaults = ConversionSettings()
             s.rotation = defaults.rotation
@@ -374,12 +374,12 @@ private struct WatermarkTab: View {
     private var watermark: WatermarkSettings { store.settings.watermark }
 
     var body: some View {
-        SettingsGroup("Filigrana") {
-            Picker("Tipo", selection: $store.settings.watermark.mode) {
+        SettingsGroup("Watermark") {
+            Picker("Type", selection: $store.settings.watermark.mode) {
                 ForEach(WatermarkMode.allCases) { Text($0.label).tag($0) }
             }
             if watermark.mode == .none {
-                HelpText("Nessuna sovrapposizione: le immagini escono come sono.")
+                HelpText("No overlay: the images come out as they are.")
             }
         }
 
@@ -388,73 +388,76 @@ private struct WatermarkTab: View {
                 LabeledContent("File") {
                     HStack(spacing: 6) {
                         Text(watermark.imagePath.isEmpty
-                             ? "Nessun file scelto"
+                             ? String(localized: "No file chosen")
                              : (watermark.imageURL?.lastPathComponent ?? watermark.imagePath))
                             .lineLimit(1)
                             .truncationMode(.middle)
                             .foregroundStyle(watermark.imagePath.isEmpty ? .secondary : .primary)
-                        Button("Scegli…") { store.chooseWatermarkImage() }
+                        Button("Choose…") { store.chooseWatermarkImage() }
                             .controlSize(.small)
                         if !watermark.imagePath.isEmpty {
-                            Button("Rimuovi") { store.settings.watermark.imagePath = "" }
+                            Button("Remove") { store.settings.watermark.imagePath = "" }
                                 .controlSize(.small)
                         }
                     }
                 }
                 ValueSlider(
-                    title: "Larghezza",
+                    title: "Width",
                     value: $store.settings.watermark.imageScale,
                     range: 1...100,
                     step: 1,
                     suffix: "%"
                 )
-                HelpText("Percentuale della larghezza dell'immagine: lo stesso logo resta "
-                    + "proporzionato su file di dimensioni diverse. Un PNG con sfondo "
-                    + "trasparente dà il risultato migliore.")
+                HelpText("""
+                    A percentage of the image width, so the same logo stays in proportion \
+                    across files of different sizes. A PNG with a transparent background \
+                    gives the best result.
+                    """)
             }
         }
 
         if watermark.mode == .text {
-            SettingsGroup("Testo") {
-                LabeledContent("Testo") {
+            SettingsGroup("Text") {
+                LabeledContent("Text") {
                     TextBox(text: $store.settings.watermark.text, placeholder: "© Studio 2026", width: 190)
                 }
-                Picker("Carattere", selection: $store.settings.watermark.fontFamily) {
+                Picker("Font", selection: $store.settings.watermark.fontFamily) {
                     ForEach(WatermarkSettings.availableFontFamilies, id: \.self) { Text($0).tag($0) }
                 }
-                HexColorField(title: "Colore", hex: $store.settings.watermark.colorHex)
-                Toggle("Contorno scuro", isOn: $store.settings.watermark.outline)
+                HexColorField(title: "Color", hex: $store.settings.watermark.colorHex)
+                Toggle("Dark outline", isOn: $store.settings.watermark.outline)
                 ValueSlider(
-                    title: "Corpo del carattere",
+                    title: "Font size",
                     value: $store.settings.watermark.textScale,
                     range: 1...25,
                     step: 0.5,
                     suffix: "%",
                     decimals: 1
                 )
-                HelpText("Il corpo è una percentuale della larghezza dell'immagine. "
-                    + "Il contorno serve a tenere il testo leggibile anche sopra "
-                    + "una zona chiara.")
+                HelpText("""
+                    The font size is a percentage of the image width. The outline keeps \
+                    the text readable even over a light area.
+                    """)
             }
         }
 
         if watermark.mode != .none {
-            SettingsGroup("Collocazione") {
-                Toggle("Ripeti a mosaico su tutta l'immagine", isOn: $store.settings.watermark.tile)
+            SettingsGroup("Placement") {
+                Toggle("Tile across the whole image", isOn: $store.settings.watermark.tile)
 
                 if watermark.tile {
                     ValueSlider(
-                        title: "Distanza fra le ripetizioni",
+                        title: "Gap between repeats",
                         value: $store.settings.watermark.tileGap,
                         range: 0...300,
                         step: 5,
                         suffix: "%"
                     )
-                    HelpText("Percentuale della dimensione della filigrana.")
+                    HelpText("A percentage of the watermark size.")
                 } else {
                     PositionGrid(selection: $store.settings.watermark.position)
                     ValueSlider(
-                        title: "Margine dal bordo",
+                        title: "Margin from the edge",
                         value: $store.settings.watermark.margin,
                         range: 0...20,
                         step: 0.5,
@@ -465,7 +468,7 @@ private struct WatermarkTab: View {
                 }
 
                 ValueSlider(
-                    title: "Rotazione",
+                    title: "Rotation",
                     value: $store.settings.watermark.rotation,
                     range: -90...90,
                     step: 5,
@@ -473,20 +476,22 @@ private struct WatermarkTab: View {
                 )
             }
 
-            SettingsGroup("Resa") {
+            SettingsGroup("Rendering") {
                 ValueSlider(
-                    title: "Opacità",
+                    title: "Opacity",
                     value: $store.settings.watermark.opacity,
                     range: 5...100,
                     step: 1,
                     suffix: "%"
                 )
                 if let problem = watermark.problem {
-                    WarningText(problem)
+                    WarningText(verbatim: problem)
                 } else {
-                    HelpText("La filigrana viene applicata dopo il ridimensionamento e le "
-                        + "regolazioni di colore: resta proporzionata all'immagine finale "
-                        + "e un logo a colori non viene toccato dalla scala di grigi.")
+                    HelpText("""
+                        The watermark is applied after resizing and color adjustments: it stays \
+                        in proportion to the final image, and a color logo is left untouched by \
+                        the grayscale conversion.
+                        """)
                 }
             }
         }
@@ -499,54 +504,54 @@ private struct DestinationTab: View {
     @EnvironmentObject private var store: AppStore
 
     var body: some View {
-        SettingsGroup("Dove salvare") {
-            Picker("Destinazione", selection: $store.settings.destination) {
+        SettingsGroup("Where to save") {
+            Picker("Destination", selection: $store.settings.destination) {
                 ForEach(DestinationMode.allCases) { Text($0.label).tag($0) }
             }
 
             switch store.settings.destination {
             case .subfolder:
-                LabeledContent("Nome sottocartella") {
+                LabeledContent("Subfolder name") {
                     TextBox(text: $store.settings.subfolderName, placeholder: "Comprimio", width: 150)
                 }
             case .customFolder:
-                LabeledContent("Cartella") {
+                LabeledContent("Folder") {
                     HStack(spacing: 6) {
                         Text(store.settings.customFolderPath.isEmpty
-                             ? "Nessuna cartella scelta"
+                             ? String(localized: "No folder chosen")
                              : store.settings.customFolderPath)
                             .lineLimit(1)
                             .truncationMode(.head)
                             .foregroundStyle(store.settings.customFolderPath.isEmpty ? .secondary : .primary)
-                        Button("Scegli…") { store.chooseDestinationFolder() }
+                        Button("Choose…") { store.chooseDestinationFolder() }
                             .controlSize(.small)
                     }
                 }
             case .sameFolder:
-                WarningText("Con un suffisso vuoto e la sovrascrittura attiva, gli originali vengono sostituiti.")
+                WarningText("With an empty suffix and overwriting enabled, the originals are replaced.")
             }
         }
 
-        SettingsGroup("Nome del file") {
-            LabeledContent("Prefisso") {
-                TextBox(text: $store.settings.namePrefix, placeholder: "es. web-", width: 200)
+        SettingsGroup("File name") {
+            LabeledContent("Prefix") {
+                TextBox(text: $store.settings.namePrefix, placeholder: String(localized: "e.g. web-"), width: 200)
             }
-            LabeledContent("Suffisso") {
-                TextBox(text: $store.settings.nameSuffix, placeholder: "es. -compresso", width: 200)
+            LabeledContent("Suffix") {
+                TextBox(text: $store.settings.nameSuffix, placeholder: String(localized: "e.g. -compressed"), width: 200)
             }
-            Toggle("Sovrascrivi i file esistenti", isOn: $store.settings.overwriteExisting)
-            HelpText(exampleName)
+            Toggle("Overwrite existing files", isOn: $store.settings.overwriteExisting)
+            HelpText(verbatim: exampleName)
         }
 
         SettingsGroup("ImageMagick") {
             if let install = store.install {
-                LabeledContent("Versione") {
+                LabeledContent("Version") {
                     Text(install.version)
                         .font(.caption)
                         .lineLimit(2)
                         .textSelection(.enabled)
                 }
-                LabeledContent("Origine") {
+                LabeledContent("Source") {
                     HStack(spacing: 5) {
                         Image(systemName: install.source == .bundled ? "shippingbox.fill" : "terminal")
                             .foregroundStyle(install.source == .bundled ? Color.green : Color.secondary)
@@ -554,7 +559,7 @@ private struct DestinationTab: View {
                             .font(.caption)
                     }
                 }
-                LabeledContent("Binario") {
+                LabeledContent("Binary") {
                     Text(install.executable.path)
                         .font(.caption)
                         .lineLimit(1)
@@ -562,15 +567,17 @@ private struct DestinationTab: View {
                         .textSelection(.enabled)
                 }
                 if install.source == .bundled {
-                    HelpText("Comprimio non richiede alcuna installazione: ImageMagick e i suoi "
-                             + "coder sono dentro l'app.")
+                    HelpText("""
+                        Comprimio needs no installation: ImageMagick and its coders live \
+                        inside the app.
+                        """)
                 }
             } else {
-                WarningText("Nessuna installazione rilevata.")
+                WarningText("No installation detected.")
             }
             HStack {
-                Button("Scegli binario…") { store.chooseMagickBinary() }
-                Button("Rileva di nuovo") { store.detectImageMagick() }
+                Button("Choose Binary…") { store.chooseMagickBinary() }
+                Button("Detect Again") { store.detectImageMagick() }
             }
             .controlSize(.small)
         }
@@ -578,6 +585,7 @@ private struct DestinationTab: View {
 
     private var exampleName: String {
         let sample = store.selectedItem?.url ?? URL(fileURLWithPath: "/foto.jpg")
-        return "Esempio: " + ImageMagick.outputURL(for: sample, settings: store.settings).lastPathComponent
+        let name = ImageMagick.outputURL(for: sample, settings: store.settings).lastPathComponent
+        return String(localized: "Example: \(name)")
     }
 }

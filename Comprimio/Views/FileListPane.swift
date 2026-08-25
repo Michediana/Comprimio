@@ -35,7 +35,7 @@ struct FileListPane: View {
 
     private var table: some View {
         Table(store.items, selection: $store.selection, sortOrder: $store.sortOrder) {
-            TableColumn("Nome", value: \.name) { item in
+            TableColumn("Name", value: \.name) { item in
                 HStack(spacing: 6) {
                     Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
                         .resizable()
@@ -46,27 +46,27 @@ struct FileListPane: View {
             }
             .width(min: 160, ideal: 260)
 
-            TableColumn("Dimensione", value: \.originalSize) { item in
+            TableColumn("Size", value: \.originalSize) { item in
                 Text(Fmt.bytes(item.originalSize)).monospacedDigit()
             }
             .width(min: 80, ideal: 96)
 
-            TableColumn("Risoluzione", value: \.sortPixels) { item in
+            TableColumn("Resolution", value: \.sortPixels) { item in
                 Text(Fmt.pixels(item.pixelSize)).monospacedDigit()
             }
             .width(min: 90, ideal: 110)
 
-            TableColumn("Risultato", value: \.sortOutputSize) { item in
+            TableColumn("Result", value: \.sortOutputSize) { item in
                 Text(Fmt.bytes(item.outputSize)).monospacedDigit()
             }
             .width(min: 80, ideal: 96)
 
-            TableColumn("Risparmio", value: \.sortSaving) { item in
+            TableColumn("Saving", value: \.sortSaving) { item in
                 SavingLabel(saving: item.saving)
             }
             .width(min: 80, ideal: 90)
 
-            TableColumn("Stato") { item in
+            TableColumn("Status") { item in
                 StatusLabel(item: item)
             }
             .width(min: 90, ideal: 110)
@@ -75,15 +75,15 @@ struct FileListPane: View {
         .scrollContentBackground(.hidden)
         .onChange(of: store.sortOrder) { _ in store.applySort() }
         .contextMenu(forSelectionType: ImageItem.ID.self) { ids in
-            Button("Rimuovi dalla lista") {
+            Button("Remove from List") {
                 store.items.removeAll { ids.contains($0.id) }
                 store.selection.subtract(ids)
             }
-            Button("Mostra originale nel Finder") {
+            Button("Show Original in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting(Array(ids))
             }
             let outputs = store.items.filter { ids.contains($0.id) }.compactMap(\.outputURL)
-            Button("Mostra risultato nel Finder") {
+            Button("Show Result in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting(outputs)
             }
             .disabled(outputs.isEmpty)
@@ -92,10 +92,10 @@ struct FileListPane: View {
 
     private var listFooter: some View {
         HStack(spacing: 10) {
-            Text("\(store.items.count) immagini")
+            Text("\(store.items.count) images")
                 .font(.callout)
             if store.totalOriginalSize > 0 {
-                Text("·").foregroundStyle(.tertiary)
+                Text(verbatim: "·").foregroundStyle(.tertiary)
                 Text(Fmt.bytes(store.totalOriginalSize))
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -103,7 +103,7 @@ struct FileListPane: View {
             }
             Spacer()
             if !store.selection.isEmpty {
-                Text("\(store.selection.count) selezionate")
+                Text("\(store.selection.count) selected")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -133,7 +133,7 @@ struct SavingLabel: View {
                 .monospacedDigit()
                 .foregroundStyle(saving >= 0 ? Color.green : Color.orange)
         } else {
-            Text("—").foregroundStyle(.tertiary)
+            Text(verbatim: "—").foregroundStyle(.tertiary)
         }
     }
 }
@@ -145,7 +145,7 @@ struct StatusLabel: View {
         HStack(spacing: 4) {
             Image(systemName: item.status.symbol)
                 .foregroundStyle(color)
-            Text(item.status == .failed ? "Errore" : item.status.label)
+            Text(item.status.label)
                 .lineLimit(1)
         }
         .help(item.errorMessage ?? item.status.label)
@@ -169,12 +169,12 @@ struct EmptyListPlaceholder: View {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.system(size: 38, weight: .light))
                 .foregroundStyle(.tertiary)
-            Text("Nessuna immagine")
+            Text("No images")
                 .font(.title3.weight(.medium))
-            Text("Trascina qui i file o le cartelle da elaborare.")
+            Text("Drag the files or folders you want to process here.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Button("Aggiungi immagini…") {
+            Button("Add Images…") {
                 store.presentOpenPanel(directories: false)
             }
             .glassButton(prominent: true)

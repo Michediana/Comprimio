@@ -71,8 +71,8 @@ enum MagickSource: Sendable {
 
     var label: String {
         switch self {
-        case .bundled: return "incluso nell'app"
-        case .system: return "installato sul sistema"
+        case .bundled: return String(localized: "bundled with the app")
+        case .system: return String(localized: "installed on the system")
         }
     }
 }
@@ -273,7 +273,7 @@ enum ImageMagick {
     static func inspect(_ location: MagickLocation) throws -> MagickInstall {
         let versionOut = try run(location, arguments: ["-version"])
         guard versionOut.exitCode == 0 else {
-            throw MagickError(message: "Impossibile eseguire \(location.executable.path).")
+            throw MagickError(message: String(localized: "Cannot run \(location.executable.path)."))
         }
         let version = versionOut.standardOutput
             .split(separator: "\n").first
@@ -586,17 +586,17 @@ enum ImageMagick {
     /// Sono decine e cambiano da versione a versione: quelle che contano sono
     /// le fasi lunghe, il resto ricade su un generico "elaboro".
     private static let phaseLabels: [String: String] = [
-        "load": "carico",
-        "save": "salvo",
-        "resize": "ridimensiono",
-        "modulate": "regolo i colori",
-        "function": "regolo i colori",
-        "colorspace": "converto il colore",
-        "morphology": "applico i filtri",
-        "sharpen": "applico i filtri",
-        "blur": "applico i filtri",
-        "rotate": "ruoto",
-        "extent": "ritaglio"
+        "load": String(localized: "loading"),
+        "save": String(localized: "saving"),
+        "resize": String(localized: "resizing"),
+        "modulate": String(localized: "adjusting colors"),
+        "function": String(localized: "adjusting colors"),
+        "colorspace": String(localized: "converting color"),
+        "morphology": String(localized: "applying filters"),
+        "sharpen": String(localized: "applying filters"),
+        "blur": String(localized: "applying filters"),
+        "rotate": String(localized: "rotating"),
+        "extent": String(localized: "cropping")
     ]
 
     /// Interpreta una riga di `-monitor`, del tipo
@@ -623,7 +623,7 @@ enum ImageMagick {
             .first?.lowercased() ?? ""
         // I contatori partono da zero: `0 of 3000` è la prima riga di 3000.
         return MagickProgress(
-            phase: phaseLabels[key] ?? "elaboro",
+            phase: phaseLabels[key] ?? String(localized: "processing"),
             fraction: min(1, (offset + 1) / extent)
         )
     }
@@ -671,7 +671,7 @@ enum ImageMagick {
         process.standardError = errPipe
 
         if let cancellation, !cancellation.register(process) {
-            throw MagickError(message: "Operazione annullata.")
+            throw MagickError(message: String(localized: "Operation cancelled."))
         }
         defer { cancellation?.unregister(process) }
 
@@ -784,11 +784,13 @@ enum ImageMagick {
         )
 
         if cancellation?.cancelled == true {
-            throw MagickError(message: "Operazione annullata.")
+            throw MagickError(message: String(localized: "Operation cancelled."))
         }
         guard result.exitCode == 0, FileManager.default.fileExists(atPath: destination.path) else {
             let stderr = result.standardError.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw MagickError(message: stderr.isEmpty ? "magick è terminato con codice \(result.exitCode)." : stderr)
+            throw MagickError(message: stderr.isEmpty
+                ? String(localized: "magick exited with code \(result.exitCode).")
+                : stderr)
         }
         return destination
     }

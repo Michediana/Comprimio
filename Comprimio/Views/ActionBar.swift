@@ -19,13 +19,13 @@ struct ActionBar: View {
                     Button {
                         store.presentOpenPanel(directories: false)
                     } label: {
-                        Label("Aggiungi…", systemImage: "plus")
+                        Label("Add…", systemImage: "plus")
                     }
 
                     Button {
                         store.removeSelected()
                     } label: {
-                        Label("Rimuovi", systemImage: "minus")
+                        Label("Remove", systemImage: "minus")
                     }
                     .disabled(store.selection.isEmpty)
                 }
@@ -39,7 +39,7 @@ struct ActionBar: View {
             Spacer(minLength: 12)
 
             if store.isProcessing {
-                Button("Annulla") { store.cancelProcessing() }
+                Button("Cancel") { store.cancelProcessing() }
                     .glassButton()
             }
 
@@ -47,7 +47,7 @@ struct ActionBar: View {
                 store.startProcessing()
             } label: {
                 Label(
-                    store.isProcessing ? "Elaborazione…" : "Converti",
+                    store.isProcessing ? "Processing…" : "Convert",
                     systemImage: store.isProcessing ? "hourglass" : "wand.and.stars"
                 )
                 .padding(.horizontal, 4)
@@ -72,7 +72,7 @@ struct ActionBar: View {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                 Text(summary).font(.callout)
-                Button("Mostra nel Finder") { store.revealOutputInFinder() }
+                Button("Show in Finder") { store.revealOutputInFinder() }
                     .buttonStyle(.link)
             }
         } else if store.install != nil, !store.items.isEmpty {
@@ -133,7 +133,7 @@ struct ActionBar: View {
 
     /// Nome del file in lavorazione con la fase, più le corsie in parallelo.
     private var itemCaption: String {
-        guard let focused = store.focusedItem else { return "Avvio…" }
+        guard let focused = store.focusedItem else { return String(localized: "Starting…") }
         var caption = "\(focused.progress.phase) \(focused.item.name)"
         let others = store.activeCount - 1
         if others > 0 { caption += " · +\(others)" }
@@ -143,19 +143,22 @@ struct ActionBar: View {
     private var plan: String {
         let s = store.settings
         var parts: [String] = []
-        parts.append(s.outputFormat == .keepOriginal ? "formato originale" : s.outputFormat.label)
+        parts.append(s.outputFormat == .keepOriginal
+                     ? String(localized: "original format")
+                     : s.outputFormat.label)
         if s.outputFormat.supportsQuality || s.outputFormat == .keepOriginal {
-            parts.append("qualità \(Int(s.quality))")
+            parts.append(String(localized: "quality \(Int(s.quality))"))
         }
-        if s.resizeMode != .none { parts.append(s.resizeMode.label.lowercased()) }
+        // Niente `.lowercased()`: in tedesco i sostantivi restano maiuscoli.
+        if s.resizeMode != .none { parts.append(s.resizeMode.label) }
         switch s.destination {
         case .sameFolder:
-            parts.append("stessa cartella")
+            parts.append(String(localized: "same folder"))
         case .subfolder:
-            parts.append("cartella «\(s.subfolderName)»")
+            parts.append(String(localized: "“\(s.subfolderName)” folder"))
         case .customFolder:
-            let name = s.customFolderURL?.lastPathComponent ?? "non impostata"
-            parts.append("cartella «\(name)»")
+            let name = s.customFolderURL?.lastPathComponent ?? String(localized: "not set")
+            parts.append(String(localized: "“\(name)” folder"))
         }
         return parts.joined(separator: " · ")
     }

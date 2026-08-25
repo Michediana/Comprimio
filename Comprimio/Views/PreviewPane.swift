@@ -16,11 +16,11 @@ struct PreviewPane: View {
     var body: some View {
         HStack(spacing: 12) {
             PreviewTile(
-                title: "Originale",
+                title: "Original",
                 image: store.previewOriginal,
                 detail: originalDetail,
                 isLoading: false,
-                message: store.items.isEmpty ? "Aggiungi un'immagine per vedere l'anteprima." : nil,
+                message: store.items.isEmpty ? String(localized: "Add an image to see the preview.") : nil,
                 zoom: $zoom,
                 isReference: true,
                 pixelSize: store.selectedItem?.pixelSize,
@@ -28,7 +28,7 @@ struct PreviewPane: View {
             )
 
             PreviewTile(
-                title: "Risultato",
+                title: "Result",
                 image: store.previewResult,
                 detail: resultDetail,
                 isLoading: store.isRenderingPreview,
@@ -61,7 +61,7 @@ struct PreviewPane: View {
         let format = store.selectedItem.map { store.settings.targetFormat(for: $0.url).label } ?? ""
         var text = "\(Fmt.pixels(store.previewPixelSize)) · \(Fmt.bytes(size)) · \(format)"
         if store.previewIsDownscaled {
-            text += " · stima su anteprima ridotta"
+            text += " · " + String(localized: "estimated on a downscaled preview")
         }
         return text
     }
@@ -93,9 +93,9 @@ struct PreviewPane: View {
             }
             .disabled(!zoom.canZoomOut)
             .keyboardShortcut("-", modifiers: .command)
-            .help("Riduci")
+            .help("Zoom out")
 
-            Text(String(format: "%.1f×", zoom.scale))
+            Text(String(format: "%.1f×", locale: .current, zoom.scale))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 34)
@@ -105,30 +105,31 @@ struct PreviewPane: View {
             }
             .disabled(!zoom.canZoomIn)
             .keyboardShortcut("+", modifiers: .command)
-            .help("Ingrandisci")
+            .help("Zoom in")
 
             Divider().frame(height: 12)
 
-            Button("1:1") { zoom.setScale(zoom.nativeScale) }
+            // «1:1» è uguale in tutte le lingue: fuori dal catalogo.
+            Button { zoom.setScale(zoom.nativeScale) } label: { Text(verbatim: "1:1") }
                 .disabled(zoom.isNative)
-                .help("Pixel reali dell'originale")
+                .help("Actual pixels of the original")
 
-            Button("Adatta") { zoom.reset() }
+            Button("Fit") { zoom.reset() }
                 .disabled(zoom.isFit)
                 .keyboardShortcut("0", modifiers: .command)
-                .help("Adatta l'immagine al riquadro")
+                .help("Fit the image to the frame")
         }
         .buttonStyle(.plain)
         .font(.caption.weight(.medium))
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
         .glassSurface(cornerRadius: 9)
-        .help("Pizzica, ⌘ + rotella o doppio clic per ingrandire; trascina per spostare")
+        .help("Pinch, ⌘ + scroll or double-click to zoom; drag to pan")
     }
 }
 
 struct PreviewTile<Accessory: View>: View {
-    let title: String
+    let title: LocalizedStringKey
     let image: NSImage?
     let detail: String
     let isLoading: Bool
@@ -144,7 +145,7 @@ struct PreviewTile<Accessory: View>: View {
     private let inset: CGFloat = 6
 
     init(
-        title: String,
+        title: LocalizedStringKey,
         image: NSImage?,
         detail: String,
         isLoading: Bool,
@@ -282,7 +283,7 @@ struct RenderingIndicator: View {
             ProgressView()
                 .progressViewStyle(.circular)
                 .controlSize(.small)
-            Text("Anteprima in corso…")
+            Text("Rendering preview…")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

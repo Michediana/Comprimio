@@ -30,16 +30,16 @@ enum FormatCategory: String, CaseIterable, Identifiable, Codable {
 
     var label: String {
         switch self {
-        case .common: return "Web e uso comune"
-        case .variants: return "Varianti"
-        case .photo: return "Fotografia, HDR e cinema"
-        case .graphics: return "Grafica ed editing"
-        case .document: return "Documenti e vettoriali"
-        case .icon: return "Icone e bitmap di sistema"
-        case .netpbm: return "Netpbm e fax"
-        case .rawSamples: return "Campioni grezzi"
-        case .scientific: return "Scientifici e tecnici"
-        case .text: return "Testo e braille"
+        case .common: return String(localized: "Web and everyday use")
+        case .variants: return String(localized: "Variants")
+        case .photo: return String(localized: "Photography, HDR and cinema")
+        case .graphics: return String(localized: "Graphics and editing")
+        case .document: return String(localized: "Documents and vector")
+        case .icon: return String(localized: "Icons and system bitmaps")
+        case .netpbm: return String(localized: "Netpbm and fax")
+        case .rawSamples: return String(localized: "Raw samples")
+        case .scientific: return String(localized: "Scientific and technical")
+        case .text: return String(localized: "Text and braille")
         }
     }
 }
@@ -55,7 +55,8 @@ struct OutputFormat: Identifiable, Hashable, Codable {
 
     /// Chiave stabile: persistita nelle impostazioni.
     let id: String
-    let label: String
+    /// Etichetta in inglese, che è anche la chiave nel catalogo di stringhe.
+    private let labelKey: String
     /// Nome del coder per ImageMagick (`magick -list format`).
     /// `nil` solo per «Mantieni originale».
     let magickName: String?
@@ -81,7 +82,7 @@ struct OutputFormat: Identifiable, Hashable, Codable {
         maxQuality: Int = 100
     ) {
         self.id = id
-        self.label = label
+        self.labelKey = label
         self.magickName = magick
         self.fileExtension = ext
         self.category = category
@@ -90,6 +91,15 @@ struct OutputFormat: Identifiable, Hashable, Codable {
         self.supportsAlpha = alpha
         self.supportsLossless = lossless
         self.maxQuality = maxQuality
+    }
+
+    /// Nome mostrato nel menu dei formati.
+    ///
+    /// Gran parte delle etichette sono nomi propri («JPEG», «Khoros VIFF»):
+    /// nel catalogo entrano solo quelle che contengono parole da tradurre, le
+    /// altre non hanno una voce e ricadono sulla chiave, cioè su se stesse.
+    var label: String {
+        String(localized: String.LocalizationValue(labelKey))
     }
 
     static func == (lhs: OutputFormat, rhs: OutputFormat) -> Bool { lhs.id == rhs.id }
@@ -109,7 +119,7 @@ struct OutputFormat: Identifiable, Hashable, Codable {
     // MARK: - Formati citati esplicitamente nel codice
 
     static let keepOriginal = OutputFormat(
-        "keepOriginal", "Mantieni originale", magick: nil, ext: nil, .common)
+        "keepOriginal", "Keep original", magick: nil, ext: nil, .common)
 
     static let jpeg = OutputFormat(
         "jpeg", "JPEG", magick: "JPEG", ext: "jpg", .common, family: .jpeg, quality: true)
@@ -179,32 +189,32 @@ struct OutputFormat: Identifiable, Hashable, Codable {
         tiff, bmp,
 
         // Varianti dei formati comuni
-        OutputFormat("png8", "PNG a 8 bit (palette)", magick: "PNG8", ext: "png", .variants,
+        OutputFormat("png8", "8-bit PNG (palette)", magick: "PNG8", ext: "png", .variants,
                      family: .png, alpha: true),
-        OutputFormat("png24", "PNG a 24 bit", magick: "PNG24", ext: "png", .variants,
+        OutputFormat("png24", "24-bit PNG", magick: "PNG24", ext: "png", .variants,
                      family: .png, alpha: true),
-        OutputFormat("png32", "PNG a 32 bit (RGBA)", magick: "PNG32", ext: "png", .variants,
+        OutputFormat("png32", "32-bit PNG (RGBA)", magick: "PNG32", ext: "png", .variants,
                      family: .png, alpha: true),
-        OutputFormat("png48", "PNG a 48 bit", magick: "PNG48", ext: "png", .variants,
+        OutputFormat("png48", "48-bit PNG", magick: "PNG48", ext: "png", .variants,
                      family: .png, alpha: true),
-        OutputFormat("png64", "PNG a 64 bit (RGBA)", magick: "PNG64", ext: "png", .variants,
+        OutputFormat("png64", "64-bit PNG (RGBA)", magick: "PNG64", ext: "png", .variants,
                      family: .png, alpha: true),
-        OutputFormat("png00", "PNG (eredita profondità e tipo)", magick: "PNG00", ext: "png",
+        OutputFormat("png00", "PNG (inherits depth and type)", magick: "PNG00", ext: "png",
                      .variants, family: .png, alpha: true),
-        OutputFormat("pjpeg", "JPEG progressivo", magick: "PJPEG", ext: "jpg", .variants,
+        OutputFormat("pjpeg", "Progressive JPEG", magick: "PJPEG", ext: "jpg", .variants,
                      family: .jpeg, quality: true),
-        OutputFormat("bmp2", "BMP versione 2", magick: "BMP2", ext: "bmp", .variants),
-        OutputFormat("bmp3", "BMP versione 3", magick: "BMP3", ext: "bmp", .variants),
+        OutputFormat("bmp2", "BMP version 2", magick: "BMP2", ext: "bmp", .variants),
+        OutputFormat("bmp3", "BMP version 3", magick: "BMP3", ext: "bmp", .variants),
         OutputFormat("gif87", "GIF 87a", magick: "GIF87", ext: "gif", .variants, family: .gif),
-        OutputFormat("tiff64", "BigTIFF (TIFF a 64 bit)", magick: "TIFF64", ext: "tif", .variants,
+        OutputFormat("tiff64", "BigTIFF (64-bit TIFF)", magick: "TIFF64", ext: "tif", .variants,
                      family: .tiff, quality: true, alpha: true),
-        OutputFormat("ptif", "TIFF piramidale", magick: "PTIF", ext: "ptif", .variants,
+        OutputFormat("ptif", "Pyramidal TIFF", magick: "PTIF", ext: "ptif", .variants,
                      family: .tiff, quality: true, alpha: true),
 
         // Fotografia, HDR e cinema
         OutputFormat("jp2", "JPEG 2000", magick: "JP2", ext: "jp2", .photo,
                      quality: true, alpha: true),
-        OutputFormat("pgx", "JPEG 2000 non compresso (PGX)", magick: "PGX", ext: "pgx", .photo),
+        OutputFormat("pgx", "Uncompressed JPEG 2000 (PGX)", magick: "PGX", ext: "pgx", .photo),
         OutputFormat("exr", "OpenEXR", magick: "EXR", ext: "exr", .photo, alpha: true),
         OutputFormat("hdr", "Radiance HDR", magick: "HDR", ext: "hdr", .photo),
         OutputFormat("pfm", "Portable Float Map", magick: "PFM", ext: "pfm", .photo),
@@ -212,15 +222,15 @@ struct OutputFormat: Identifiable, Hashable, Codable {
         OutputFormat("fl32", "FilmLight FL32", magick: "FL32", ext: "fl32", .photo),
         OutputFormat("dpx", "DPX (SMPTE 268M)", magick: "DPX", ext: "dpx", .photo),
         OutputFormat("cin", "Cineon", magick: "CIN", ext: "cin", .photo),
-        OutputFormat("jps", "JPEG stereoscopico (JPS)", magick: "JPS", ext: "jps", .photo,
+        OutputFormat("jps", "Stereoscopic JPEG (JPS)", magick: "JPS", ext: "jps", .photo,
                      family: .jpeg, quality: true),
         OutputFormat("jng", "JNG (JPEG Network Graphics)", magick: "JNG", ext: "jng", .photo,
                      quality: true, alpha: true),
-        OutputFormat("mng", "MNG (PNG multiplo)", magick: "MNG", ext: "mng", .photo, alpha: true),
+        OutputFormat("mng", "MNG (multiple-image PNG)", magick: "MNG", ext: "mng", .photo, alpha: true),
 
         // Grafica ed editing
         OutputFormat("psd", "Photoshop (PSD)", magick: "PSD", ext: "psd", .graphics, alpha: true),
-        OutputFormat("psb", "Photoshop grandi documenti (PSB)", magick: "PSB", ext: "psb",
+        OutputFormat("psb", "Photoshop Large Document (PSB)", magick: "PSB", ext: "psb",
                      .graphics, alpha: true),
         OutputFormat("miff", "MIFF (Magick Image File)", magick: "MIFF", ext: "miff", .graphics,
                      alpha: true),
@@ -229,11 +239,11 @@ struct OutputFormat: Identifiable, Hashable, Codable {
         OutputFormat("vips", "VIPS", magick: "VIPS", ext: "v", .graphics, alpha: true),
         OutputFormat("tga", "Targa (TGA)", magick: "TGA", ext: "tga", .graphics, alpha: true),
         OutputFormat("pcx", "PCX (ZSoft Paintbrush)", magick: "PCX", ext: "pcx", .graphics),
-        OutputFormat("dcx", "DCX (PCX multipagina)", magick: "DCX", ext: "dcx", .graphics),
+        OutputFormat("dcx", "DCX (multi-page PCX)", magick: "DCX", ext: "dcx", .graphics),
         OutputFormat("dds", "DDS (DirectDraw Surface)", magick: "DDS", ext: "dds", .graphics,
                      quality: true, alpha: true),
-        OutputFormat("dxt1", "DDS con compressione DXT1", magick: "DXT1", ext: "dds", .graphics),
-        OutputFormat("dxt5", "DDS con compressione DXT5", magick: "DXT5", ext: "dds", .graphics,
+        OutputFormat("dxt1", "DDS with DXT1 compression", magick: "DXT1", ext: "dds", .graphics),
+        OutputFormat("dxt5", "DDS with DXT5 compression", magick: "DXT5", ext: "dds", .graphics,
                      alpha: true),
         OutputFormat("qoi", "QOI (Quite OK Image)", magick: "QOI", ext: "qoi", .graphics,
                      alpha: true),
@@ -249,7 +259,7 @@ struct OutputFormat: Identifiable, Hashable, Codable {
         OutputFormat("aai", "AAI Dune", magick: "AAI", ext: "aai", .graphics, alpha: true),
         OutputFormat("avs", "AVS X", magick: "AVS", ext: "avs", .graphics, alpha: true),
         OutputFormat("art", "PFS: 1st Publisher (ART)", magick: "ART", ext: "art", .graphics),
-        OutputFormat("mat", "MATLAB (livello 5)", magick: "MAT", ext: "mat", .graphics,
+        OutputFormat("mat", "MATLAB (level 5)", magick: "MAT", ext: "mat", .graphics,
                      alpha: true),
         OutputFormat("viff", "Khoros VIFF", magick: "VIFF", ext: "viff", .graphics, alpha: true),
         OutputFormat("xv", "Khoros XV", magick: "XV", ext: "xv", .graphics, alpha: true),
@@ -272,27 +282,27 @@ struct OutputFormat: Identifiable, Hashable, Codable {
         OutputFormat("epdf", "PDF incapsulato (EPDF)", magick: "EPDF", ext: "epdf", .document,
                      quality: true),
         OutputFormat("ps", "PostScript", magick: "PS", ext: "ps", .document, quality: true),
-        OutputFormat("ps2", "PostScript livello 2", magick: "PS2", ext: "ps", .document,
+        OutputFormat("ps2", "PostScript level 2", magick: "PS2", ext: "ps", .document,
                      quality: true),
-        OutputFormat("ps3", "PostScript livello 3", magick: "PS3", ext: "ps", .document,
+        OutputFormat("ps3", "PostScript level 3", magick: "PS3", ext: "ps", .document,
                      quality: true),
         OutputFormat("eps", "EPS (PostScript incapsulato)", magick: "EPS", ext: "eps", .document,
                      quality: true),
-        OutputFormat("eps2", "EPS livello 2", magick: "EPS2", ext: "eps", .document,
+        OutputFormat("eps2", "EPS level 2", magick: "EPS2", ext: "eps", .document,
                      quality: true),
-        OutputFormat("eps3", "EPS livello 3", magick: "EPS3", ext: "eps", .document,
+        OutputFormat("eps3", "EPS level 3", magick: "EPS3", ext: "eps", .document,
                      quality: true),
         OutputFormat("epi", "EPS Interchange (EPI)", magick: "EPI", ext: "epi", .document,
                      quality: true),
-        OutputFormat("ept", "EPS con anteprima TIFF", magick: "EPT", ext: "ept", .document,
+        OutputFormat("ept", "EPS with TIFF preview", magick: "EPT", ext: "ept", .document,
                      quality: true),
         OutputFormat("ai", "Adobe Illustrator (AI)", magick: "AI", ext: "ai", .document,
                      quality: true),
-        OutputFormat("pcl", "PCL (stampanti HP)", magick: "PCL", ext: "pcl", .document),
+        OutputFormat("pcl", "PCL (HP printers)", magick: "PCL", ext: "pcl", .document),
 
         // Icone e bitmap di sistema
-        OutputFormat("ico", "ICO (icona Windows)", magick: "ICO", ext: "ico", .icon, alpha: true),
-        OutputFormat("cur", "CUR (cursore Windows)", magick: "CUR", ext: "cur", .icon, alpha: true),
+        OutputFormat("ico", "ICO (Windows icon)", magick: "ICO", ext: "ico", .icon, alpha: true),
+        OutputFormat("cur", "CUR (Windows cursor)", magick: "CUR", ext: "cur", .icon, alpha: true),
         OutputFormat("xbm", "X BitMap (XBM)", magick: "XBM", ext: "xbm", .icon),
         OutputFormat("xpm", "X PixMap (XPM)", magick: "XPM", ext: "xpm", .icon, alpha: true),
         OutputFormat("wbmp", "Wireless Bitmap (WBMP)", magick: "WBMP", ext: "wbmp", .icon),
@@ -301,59 +311,59 @@ struct OutputFormat: Identifiable, Hashable, Codable {
 
         // Netpbm e fax
         OutputFormat("pnm", "PNM (Portable Anymap)", magick: "PNM", ext: "pnm", .netpbm),
-        OutputFormat("pbm", "PBM (bianco e nero)", magick: "PBM", ext: "pbm", .netpbm),
-        OutputFormat("pgm", "PGM (scala di grigi)", magick: "PGM", ext: "pgm", .netpbm),
-        OutputFormat("ppm", "PPM (colore)", magick: "PPM", ext: "ppm", .netpbm),
+        OutputFormat("pbm", "PBM (black and white)", magick: "PBM", ext: "pbm", .netpbm),
+        OutputFormat("pgm", "PGM (grayscale)", magick: "PGM", ext: "pgm", .netpbm),
+        OutputFormat("ppm", "PPM (color)", magick: "PPM", ext: "ppm", .netpbm),
         OutputFormat("pam", "PAM", magick: "PAM", ext: "pam", .netpbm, alpha: true),
-        OutputFormat("mono", "Bitmap bi-livello grezza", magick: "MONO", ext: "mono", .netpbm),
-        OutputFormat("fax", "Fax Gruppo 3", magick: "FAX", ext: "fax", .netpbm),
-        OutputFormat("g3", "Gruppo 3", magick: "G3", ext: "g3", .netpbm),
-        OutputFormat("g4", "Gruppo 4", magick: "G4", ext: "g4", .netpbm),
-        OutputFormat("group4", "CCITT Gruppo 4 grezzo", magick: "GROUP4", ext: "g4", .netpbm),
-        OutputFormat("map", "Mappa colore (MAP)", magick: "MAP", ext: "map", .netpbm),
+        OutputFormat("mono", "Raw bi-level bitmap", magick: "MONO", ext: "mono", .netpbm),
+        OutputFormat("fax", "Group 3 fax", magick: "FAX", ext: "fax", .netpbm),
+        OutputFormat("g3", "Group 3", magick: "G3", ext: "g3", .netpbm),
+        OutputFormat("g4", "Group 4", magick: "G4", ext: "g4", .netpbm),
+        OutputFormat("group4", "Raw CCITT Group 4", magick: "GROUP4", ext: "g4", .netpbm),
+        OutputFormat("map", "Color map (MAP)", magick: "MAP", ext: "map", .netpbm),
 
         // Campioni grezzi
-        OutputFormat("rgb", "RGB grezzo", magick: "RGB", ext: "rgb", .rawSamples),
-        OutputFormat("rgba", "RGBA grezzo", magick: "RGBA", ext: "rgba", .rawSamples, alpha: true),
-        OutputFormat("rgbo", "RGBO grezzo (opacità)", magick: "RGBO", ext: "rgbo", .rawSamples,
+        OutputFormat("rgb", "Raw RGB", magick: "RGB", ext: "rgb", .rawSamples),
+        OutputFormat("rgba", "Raw RGBA", magick: "RGBA", ext: "rgba", .rawSamples, alpha: true),
+        OutputFormat("rgbo", "Raw RGBO (opacity)", magick: "RGBO", ext: "rgbo", .rawSamples,
                      alpha: true),
-        OutputFormat("bgr", "BGR grezzo", magick: "BGR", ext: "bgr", .rawSamples),
-        OutputFormat("bgra", "BGRA grezzo", magick: "BGRA", ext: "bgra", .rawSamples, alpha: true),
-        OutputFormat("bgro", "BGRO grezzo (opacità)", magick: "BGRO", ext: "bgro", .rawSamples,
+        OutputFormat("bgr", "Raw BGR", magick: "BGR", ext: "bgr", .rawSamples),
+        OutputFormat("bgra", "Raw BGRA", magick: "BGRA", ext: "bgra", .rawSamples, alpha: true),
+        OutputFormat("bgro", "Raw BGRO (opacity)", magick: "BGRO", ext: "bgro", .rawSamples,
                      alpha: true),
-        OutputFormat("cmyk", "CMYK grezzo", magick: "CMYK", ext: "cmyk", .rawSamples),
-        OutputFormat("cmyka", "CMYKA grezzo", magick: "CMYKA", ext: "cmyka", .rawSamples,
+        OutputFormat("cmyk", "Raw CMYK", magick: "CMYK", ext: "cmyk", .rawSamples),
+        OutputFormat("cmyka", "Raw CMYKA", magick: "CMYKA", ext: "cmyka", .rawSamples,
                      alpha: true),
-        OutputFormat("gray", "Grigio grezzo", magick: "GRAY", ext: "gray", .rawSamples),
-        OutputFormat("graya", "Grigio con alfa grezzo", magick: "GRAYA", ext: "graya", .rawSamples,
+        OutputFormat("gray", "Raw gray", magick: "GRAY", ext: "gray", .rawSamples),
+        OutputFormat("graya", "Raw gray with alpha", magick: "GRAYA", ext: "graya", .rawSamples,
                      alpha: true),
-        OutputFormat("ycbcr", "YCbCr grezzo", magick: "YCBCR", ext: "ycbcr", .rawSamples),
-        OutputFormat("ycbcra", "YCbCr con alfa grezzo", magick: "YCBCRA", ext: "ycbcra",
+        OutputFormat("ycbcr", "Raw YCbCr", magick: "YCBCR", ext: "ycbcr", .rawSamples),
+        OutputFormat("ycbcra", "Raw YCbCr with alpha", magick: "YCBCRA", ext: "ycbcra",
                      .rawSamples, alpha: true),
         OutputFormat("yuv", "YUV (CCIR 601)", magick: "YUV", ext: "yuv", .rawSamples),
-        OutputFormat("uyvy", "UYVY interlacciato", magick: "UYVY", ext: "uyvy", .rawSamples),
-        OutputFormat("pal", "PAL (YUV interlacciato a 16 bit)", magick: "PAL", ext: "pal",
+        OutputFormat("uyvy", "Interlaced UYVY", magick: "UYVY", ext: "uyvy", .rawSamples),
+        OutputFormat("pal", "PAL (16-bit interlaced YUV)", magick: "PAL", ext: "pal",
                      .rawSamples),
-        OutputFormat("bayer", "Mosaico Bayer", magick: "BAYER", ext: "bayer", .rawSamples),
-        OutputFormat("bayera", "Mosaico Bayer con alfa", magick: "BAYERA", ext: "bayera",
+        OutputFormat("bayer", "Bayer mosaic", magick: "BAYER", ext: "bayer", .rawSamples),
+        OutputFormat("bayera", "Bayer mosaic with alpha", magick: "BAYERA", ext: "bayera",
                      .rawSamples, alpha: true),
 
         // Scientifici e tecnici
-        OutputFormat("fits", "FITS (astronomia)", magick: "FITS", ext: "fits", .scientific),
+        OutputFormat("fits", "FITS (astronomy)", magick: "FITS", ext: "fits", .scientific),
         OutputFormat("vicar", "VICAR (NASA)", magick: "VICAR", ext: "vicar", .scientific),
 
         // Testo e braille
-        OutputFormat("txt", "Testo (elenco dei pixel)", magick: "TXT", ext: "txt", .text,
+        OutputFormat("txt", "Text (pixel listing)", magick: "TXT", ext: "txt", .text,
                      alpha: true),
-        OutputFormat("ftxt", "Testo formattato (FTXT)", magick: "FTXT", ext: "ftxt", .text,
+        OutputFormat("ftxt", "Formatted text (FTXT)", magick: "FTXT", ext: "ftxt", .text,
                      alpha: true),
-        OutputFormat("sixel", "SIXEL (grafica DEC)", magick: "SIXEL", ext: "sixel", .text),
-        OutputFormat("brf", "Braille BRF", magick: "BRF", ext: "brf", .text),
-        OutputFormat("isobrl", "Braille ISO 11548-1", magick: "ISOBRL", ext: "isobrl", .text),
-        OutputFormat("isobrl6", "Braille ISO 11548-1 a 6 punti", magick: "ISOBRL6", ext: "isobrl6",
+        OutputFormat("sixel", "SIXEL (DEC graphics)", magick: "SIXEL", ext: "sixel", .text),
+        OutputFormat("brf", "BRF braille", magick: "BRF", ext: "brf", .text),
+        OutputFormat("isobrl", "ISO 11548-1 braille", magick: "ISOBRL", ext: "isobrl", .text),
+        OutputFormat("isobrl6", "ISO 11548-1 six-dot braille", magick: "ISOBRL6", ext: "isobrl6",
                      .text),
-        OutputFormat("ubrl", "Braille Unicode", magick: "UBRL", ext: "ubrl", .text),
-        OutputFormat("ubrl6", "Braille Unicode a 6 punti", magick: "UBRL6", ext: "ubrl6", .text)
+        OutputFormat("ubrl", "Unicode braille", magick: "UBRL", ext: "ubrl", .text),
+        OutputFormat("ubrl6", "Unicode six-dot braille", magick: "UBRL6", ext: "ubrl6", .text)
     ]
 
     private static let byID: [String: OutputFormat] =
@@ -417,8 +427,8 @@ enum ChromaSubsampling: String, CaseIterable, Identifiable, Codable {
 
     var label: String {
         switch self {
-        case .auto: return "Automatico"
-        case .s444: return "4:4:4 (nessuno)"
+        case .auto: return String(localized: "Automatic")
+        case .s444: return String(localized: "4:4:4 (none)")
         case .s422: return "4:2:2"
         case .s420: return "4:2:0"
         }
@@ -441,13 +451,13 @@ enum ResizeMode: String, CaseIterable, Identifiable, Codable {
 
     var label: String {
         switch self {
-        case .none: return "Nessun ridimensionamento"
-        case .percent: return "Percentuale"
-        case .fit: return "Rientra in (larghezza × altezza)"
-        case .width: return "Larghezza fissa"
-        case .height: return "Altezza fissa"
-        case .exact: return "Dimensione esatta (deforma)"
-        case .fill: return "Riempi e ritaglia"
+        case .none: return String(localized: "No resizing")
+        case .percent: return String(localized: "Percentage")
+        case .fit: return String(localized: "Fit within (width × height)")
+        case .width: return String(localized: "Fixed width")
+        case .height: return String(localized: "Fixed height")
+        case .exact: return String(localized: "Exact size (distorts)")
+        case .fill: return String(localized: "Fill and crop")
         }
     }
 }
@@ -459,10 +469,10 @@ enum ResizeFilter: String, CaseIterable, Identifiable, Codable {
 
     var label: String {
         switch self {
-        case .lanczos: return "Lanczos (nitido)"
+        case .lanczos: return String(localized: "Lanczos (sharp)")
         case .mitchell: return "Mitchell"
         case .catrom: return "Catrom"
-        case .triangle: return "Triangle (morbido)"
+        case .triangle: return String(localized: "Triangle (soft)")
         case .point: return "Point (nearest)"
         }
     }
@@ -485,9 +495,11 @@ enum Rotation: String, CaseIterable, Identifiable, Codable {
 
     var label: String {
         switch self {
-        case .none: return "Nessuna"
-        case .cw90: return "90° orario"
-        case .ccw90: return "90° antiorario"
+        // Chiave esplicita: «nessuna rotazione» si accorda in modo diverso
+        // da «nessuna filigrana».
+        case .none: return String(localized: "rotation.none", defaultValue: "None")
+        case .cw90: return String(localized: "90° clockwise")
+        case .ccw90: return String(localized: "90° counterclockwise")
         case .deg180: return "180°"
         }
     }
@@ -509,9 +521,9 @@ enum DestinationMode: String, CaseIterable, Identifiable, Codable {
 
     var label: String {
         switch self {
-        case .subfolder: return "Sottocartella accanto all'originale"
-        case .sameFolder: return "Stessa cartella dell'originale"
-        case .customFolder: return "Cartella personalizzata"
+        case .subfolder: return String(localized: "Subfolder next to the original")
+        case .sameFolder: return String(localized: "Same folder as the original")
+        case .customFolder: return String(localized: "Custom folder")
         }
     }
 }

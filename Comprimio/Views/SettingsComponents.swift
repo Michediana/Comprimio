@@ -10,10 +10,10 @@ import SwiftUI
 
 /// Sezione di un `Form` con intestazione.
 struct SettingsGroup<Content: View>: View {
-    let title: String
+    let title: LocalizedStringKey
     @ViewBuilder var content: Content
 
-    init(_ title: String, @ViewBuilder content: () -> Content) {
+    init(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) {
         self.title = title
         self.content = content()
     }
@@ -251,7 +251,7 @@ final class TickSliderView: NSView {
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) non supportato") }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     private var sliderHeight: CGFloat { max(slider.intrinsicContentSize.height, 20) }
 
@@ -356,13 +356,13 @@ final class TickSliderView: NSView {
     private static func label(for value: Double) -> String {
         abs(value - value.rounded()) < 1e-9
             ? String(Int(value.rounded()))
-            : String(format: "%.1f", value)
+            : String(format: "%.1f", locale: .current, value)
     }
 }
 
 /// Etichetta + campo numerico sopra, slider sotto: come nella schermata di riferimento.
 struct ValueSlider: View {
-    let title: String
+    let title: LocalizedStringKey
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
@@ -378,7 +378,7 @@ struct ValueSlider: View {
                 if !suffix.isEmpty {
                     Text(suffix).foregroundStyle(.secondary)
                 }
-                Stepper("", value: $value, in: range, step: step)
+                Stepper(value: $value, in: range, step: step) { EmptyView() }
                     .labelsHidden()
             }
             TickSlider(value: $value, range: range, step: step)
@@ -389,7 +389,7 @@ struct ValueSlider: View {
 
 /// Campo intero con stepper.
 struct IntField: View {
-    let title: String
+    let title: LocalizedStringKey
     @Binding var value: Int
     var suffix: String = ""
     var range: ClosedRange<Int> = 1...30000
@@ -408,7 +408,7 @@ struct IntField: View {
                 if !suffix.isEmpty {
                     Text(suffix).foregroundStyle(.secondary)
                 }
-                Stepper("", value: $value, in: range, step: 1)
+                Stepper(value: $value, in: range, step: 1) { EmptyView() }
                     .labelsHidden()
             }
         }
@@ -416,12 +416,14 @@ struct IntField: View {
 }
 
 struct HelpText: View {
-    let text: String
+    private let text: Text
 
-    init(_ text: String) { self.text = text }
+    init(_ key: LocalizedStringKey) { self.text = Text(key) }
+    /// Testo già tradotto altrove (un suggerimento scelto a runtime).
+    init(verbatim text: String) { self.text = Text(text) }
 
     var body: some View {
-        Text(text)
+        text
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -429,15 +431,17 @@ struct HelpText: View {
 }
 
 struct WarningText: View {
-    let text: String
+    private let text: Text
 
-    init(_ text: String) { self.text = text }
+    init(_ key: LocalizedStringKey) { self.text = Text(key) }
+    /// Testo già tradotto altrove (il motivo per cui la filigrana non si applica).
+    init(verbatim text: String) { self.text = Text(text) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 5) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
-            Text(text)
+            text
                 .fixedSize(horizontal: false, vertical: true)
         }
         .font(.caption)
@@ -456,7 +460,7 @@ struct PositionGrid: View {
     ]
 
     var body: some View {
-        LabeledContent("Posizione") {
+        LabeledContent("Position") {
             VStack(spacing: 3) {
                 ForEach(rows.indices, id: \.self) { row in
                     HStack(spacing: 3) {
@@ -481,16 +485,16 @@ struct PositionGrid: View {
 
 /// Selettore di colore con campo esadecimale.
 struct HexColorField: View {
-    var title: String = "Colore di sfondo"
+    var title: LocalizedStringKey = "Background color"
     @Binding var hex: String
 
     var body: some View {
         LabeledContent(title) {
             HStack(spacing: 8) {
-                ColorPicker("", selection: Binding(
+                ColorPicker(selection: Binding(
                     get: { Color(nsColor: NSColor(hex: hex) ?? .white) },
                     set: { hex = $0.hexString }
-                ))
+                )) { EmptyView() }
                 .labelsHidden()
 
                 TextBox(

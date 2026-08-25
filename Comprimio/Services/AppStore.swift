@@ -96,9 +96,11 @@ final class AppStore: ObservableObject {
     func detectImageMagick() {
         guard let location = ImageMagick.locate() else {
             install = nil
-            installError = "ImageMagick non trovato: la copia inclusa nell'app risulta mancante. "
-                + "Installalo con «brew install imagemagick» oppure indica manualmente "
-                + "il percorso del binario magick."
+            installError = String(localized: """
+                ImageMagick not found: the copy bundled with the app is missing. \
+                Install it with “brew install imagemagick”, or point the app at the magick \
+                binary yourself.
+                """)
             return
         }
         do {
@@ -187,10 +189,12 @@ final class AppStore: ObservableObject {
         panel.allowsMultipleSelection = true
         panel.canChooseFiles = !directories
         panel.canChooseDirectories = directories
-        panel.prompt = directories ? "Aggiungi cartella" : "Aggiungi immagini"
+        panel.prompt = directories
+            ? String(localized: "Add Folder")
+            : String(localized: "Add Images")
         panel.message = directories
-            ? "Scegli una o più cartelle di immagini."
-            : "Scegli le immagini da elaborare."
+            ? String(localized: "Choose one or more folders of images.")
+            : String(localized: "Choose the images to process.")
         if panel.runModal() == .OK { add(urls: panel.urls) }
     }
 
@@ -199,7 +203,7 @@ final class AppStore: ObservableObject {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
-        panel.prompt = "Scegli"
+        panel.prompt = String(localized: "Choose")
         if panel.runModal() == .OK, let url = panel.url {
             settings.customFolderPath = url.path
             settings.destination = .customFolder
@@ -212,8 +216,11 @@ final class AppStore: ObservableObject {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.image]
-        panel.prompt = "Usa"
-        panel.message = "Scegli il logo da sovrapporre. Un PNG con sfondo trasparente dà il risultato migliore."
+        panel.prompt = String(localized: "Use")
+        panel.message = String(localized: """
+            Choose the logo to overlay. A PNG with a transparent background \
+            gives the best result.
+            """)
         if panel.runModal() == .OK, let url = panel.url {
             settings.watermark.imagePath = url.path
         }
@@ -224,8 +231,8 @@ final class AppStore: ObservableObject {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "Usa"
-        panel.message = "Seleziona il binario magick di ImageMagick."
+        panel.prompt = String(localized: "Use")
+        panel.message = String(localized: "Select the ImageMagick magick binary.")
         panel.directoryURL = URL(fileURLWithPath: "/opt/homebrew/bin")
         panel.showsHiddenFiles = true
         if panel.runModal() == .OK, let url = panel.url {
@@ -398,11 +405,12 @@ final class AppStore: ObservableObject {
         let failed = items.filter { $0.status == .failed }.count
         let before = done.reduce(Int64(0)) { $0 + $1.originalSize }
         let after = done.reduce(Int64(0)) { $0 + ($1.outputSize ?? 0) }
-        var summary = "\(done.count) file elaborati · \(Fmt.bytes(before)) → \(Fmt.bytes(after))"
+        var summary = String(localized: "\(done.count) files processed")
+        summary += " · \(Fmt.bytes(before)) → \(Fmt.bytes(after))"
         if before > 0 {
             summary += " (\(Fmt.percent(1 - Double(after) / Double(before))))"
         }
-        if failed > 0 { summary += " · \(failed) errori" }
+        if failed > 0 { summary += " · " + String(localized: "\(failed) errors") }
         lastRunSummary = summary
     }
 

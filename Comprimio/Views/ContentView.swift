@@ -45,50 +45,50 @@ struct ContentView: View {
             Button {
                 store.presentOpenPanel(directories: false)
             } label: {
-                Label("Aggiungi immagini", systemImage: "plus")
+                Label("Add Images", systemImage: "plus")
             }
-            .help("Aggiungi immagini")
+            .help("Add Images")
 
             Button {
                 store.presentOpenPanel(directories: true)
             } label: {
-                Label("Aggiungi cartella", systemImage: "folder.badge.plus")
+                Label("Add Folder", systemImage: "folder.badge.plus")
             }
-            .help("Aggiungi una cartella, incluse le sottocartelle")
+            .help("Add a folder, including its subfolders")
 
             Button {
                 store.removeSelected()
             } label: {
-                Label("Rimuovi", systemImage: "minus.circle")
+                Label("Remove", systemImage: "minus.circle")
             }
             .disabled(store.selection.isEmpty)
-            .help("Rimuovi dalla lista gli elementi selezionati")
+            .help("Remove the selected items from the list")
 
             Button {
                 store.removeAll()
             } label: {
-                Label("Svuota lista", systemImage: "trash")
+                Label("Clear List", systemImage: "trash")
             }
             .disabled(store.items.isEmpty)
-            .help("Svuota la lista")
+            .help("Clear the list")
         }
 
         ToolbarItemGroup {
             Button {
                 store.refreshPreview()
             } label: {
-                Label("Aggiorna anteprima", systemImage: "arrow.clockwise")
+                Label("Refresh Preview", systemImage: "arrow.clockwise")
             }
             .disabled(store.items.isEmpty || store.install == nil)
-            .help("Rigenera l'anteprima")
+            .help("Regenerate the preview")
 
             Button {
                 store.revealOutputInFinder()
             } label: {
-                Label("Mostra nel Finder", systemImage: "folder")
+                Label("Show in Finder", systemImage: "folder")
             }
             .disabled(store.items.allSatisfy { $0.outputURL == nil })
-            .help("Mostra i file prodotti nel Finder")
+            .help("Show the produced files in the Finder")
         }
     }
 }
@@ -106,20 +106,20 @@ struct MagickMissingBanner: View {
                 .foregroundStyle(.orange)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("ImageMagick non disponibile")
+                Text("ImageMagick not available")
                     .font(.headline)
-                Text(store.installError ?? "Installa ImageMagick per elaborare le immagini.")
+                Text(store.installError ?? String(localized: "Install ImageMagick to process images."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 8) {
-                    Button("Copia comando") {
+                    Button("Copy Command") {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(installCommand, forType: .string)
                     }
-                    Button("Scegli binario…") { store.chooseMagickBinary() }
-                    Button("Riprova") { store.detectImageMagick() }
+                    Button("Choose Binary…") { store.chooseMagickBinary() }
+                    Button("Try Again") { store.detectImageMagick() }
                 }
                 .controlSize(.small)
                 .glassButton()

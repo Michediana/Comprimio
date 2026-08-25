@@ -21,6 +21,6 @@ enum Fmt {
 
     static func percent(_ ratio: Double?) -> String {
         guard let ratio else { return "—" }
-        return String(format: "%+.1f%%", -ratio * 100)
+        return String(format: "%+.1f%%", locale: .current, -ratio * 100)
     }
 }
