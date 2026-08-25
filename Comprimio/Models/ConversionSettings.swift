@@ -22,6 +22,7 @@ struct ConversionSettings: Codable, Equatable {
     var pngCompressionLevel: Int = 9
     var pngPalette: Bool = false
     var webpMethod: Int = 4
+    var jxlEffort: Int = 7
     var flattenAlpha: Bool = false
     var flattenColorHex: String = "#FFFFFF"
 

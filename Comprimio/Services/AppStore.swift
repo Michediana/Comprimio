@@ -14,6 +14,9 @@ import SwiftUI
 /// Risultato di una conversione di anteprima, trasferibile fra i task.
 struct PreviewOutput: Sendable {
     let url: URL
+    /// File da mostrare a schermo: coincide con `url` quando macOS sa
+    /// decodificarlo, altrimenti è una copia PNG generata apposta.
+    let displayURL: URL
     let byteSize: Int64
     let pixelSize: CGSize
 }
@@ -62,6 +65,7 @@ final class AppStore: ObservableObject {
     private var previewCancellation: MagickCancellation?
     private var batchCancellation: MagickCancellation?
     private var previewedItemID: ImageItem.ID?
+    private var originalLoadedItemID: ImageItem.ID?
     private var processingTask: Task<Void, Never>?
     private var cancellables: Set<AnyCancellable> = []
     private let previewDirectory: URL
@@ -120,6 +124,7 @@ final class AppStore: ObservableObject {
         items.append(contentsOf: newItems)
         applySort()
         if selection.isEmpty, let first = items.first { selection = [first.id] }
+        fillMissingPixelSizes()
     }
 
     /// Espande le cartelle in file immagine (ricorsivamente).
@@ -373,7 +378,9 @@ final class AppStore: ObservableObject {
             previewDetail = false
         }
 
-        previewOriginal = NSImage(contentsOf: item.url)
+        if originalLoadedItemID != item.id {
+            loadOriginal(url: item.url, id: item.id, using: install.location)
+        }
         previewError = nil
         isRenderingPreview = true
 
@@ -383,9 +390,11 @@ final class AppStore: ObservableObject {
         let cancellation = MagickCancellation()
         previewCancellation = cancellation
         let format = settings.targetFormat(for: item.url)
+        let stem = "preview-\(abs(item.url.path.hashValue))"
         let destination = previewDirectory
-            .appendingPathComponent("preview-\(abs(item.url.path.hashValue))")
+            .appendingPathComponent(stem)
             .appendingPathExtension(format.fileExtension ?? "png")
+        let proxyDestination = previewDirectory.appendingPathComponent("\(stem)-display.png")
 
         previewTask = Task { [weak self] in
             let outcome = await Task.detached(priority: .userInitiated) { () -> Result<PreviewOutput, Error> in
@@ -400,10 +409,26 @@ final class AppStore: ObservableObject {
                     )
                     let attrs = try FileManager.default.attributesOfItem(atPath: produced.path)
                     let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+                    // ImageIO conosce una manciata di formati; il catalogo ne
+                    // offre più di cento. Se non sa nemmeno misurarlo, il file
+                    // va ricodificato in PNG per poterlo mostrare.
+                    var display = produced
+                    var pixels = Self.pixelSize(of: produced)
+                    if pixels == nil,
+                       let proxy = Self.displayProxy(
+                           for: produced,
+                           at: proxyDestination,
+                           using: location,
+                           cancellation: cancellation
+                       ) {
+                        display = proxy
+                        pixels = Self.pixelSize(of: proxy)
+                    }
                     return .success(PreviewOutput(
                         url: produced,
+                        displayURL: display,
                         byteSize: size,
-                        pixelSize: Self.pixelSize(of: produced) ?? .zero
+                        pixelSize: pixels ?? .zero
                     ))
                 } catch {
                     return .failure(error)
@@ -416,9 +441,13 @@ final class AppStore: ObservableObject {
                 self.isRenderingPreview = false
                 switch outcome {
                 case .success(let output):
-                    self.previewResult = NSImage(contentsOf: output.url)
+                    self.previewResult = NSImage(contentsOf: output.displayURL)
                     self.previewResultSize = output.byteSize
-                    self.previewPixelSize = output.pixelSize
+                    // PDF e simili: ImageIO non li misura ma AppKit li disegna,
+                    // e a quel punto la dimensione la sa l'immagine caricata.
+                    self.previewPixelSize = output.pixelSize == .zero
+                        ? self.previewResult?.size
+                        : output.pixelSize
                     self.previewError = self.previewResult == nil
                         ? "Anteprima non visualizzabile per questo formato (\(destination.pathExtension.uppercased()))."
                         : nil
@@ -441,10 +470,83 @@ final class AppStore: ObservableObject {
         refreshPreview()
     }
 
+    /// Carica l'immagine di partenza mostrata a sinistra.
+    ///
+    /// Molti formati che ImageMagick legge — PCX, FITS, XCF, i raw delle
+    /// fotocamere meno diffuse — sono ignoti a ImageIO, e il riquadro
+    /// resterebbe vuoto: per quelli l'originale passa da una copia PNG.
+    /// Si fa una volta per file, non a ogni ritocco delle impostazioni.
+    private func loadOriginal(url: URL, id: ImageItem.ID, using location: MagickLocation) {
+        originalLoadedItemID = id
+        if let image = NSImage(contentsOf: url) {
+            previewOriginal = image
+            return
+        }
+        previewOriginal = nil
+        let destination = previewDirectory
+            .appendingPathComponent("original-\(abs(url.path.hashValue)).png")
+        Task { [weak self] in
+            let proxy = await Task.detached(priority: .userInitiated) {
+                Self.displayProxy(for: url, at: destination, using: location, cancellation: nil)
+            }.value
+            guard let self, self.originalLoadedItemID == id, let proxy else { return }
+            self.previewOriginal = NSImage(contentsOf: proxy)
+        }
+    }
+
+    /// Copia PNG di un file che ImageIO non sa aprire. `nil` se nemmeno
+    /// ImageMagick riesce a rileggerlo: i formati di sola scrittura (braille,
+    /// PostScript di livello 2 e 3…) non sono visualizzabili in alcun modo.
+    private nonisolated static func displayProxy(
+        for source: URL,
+        at destination: URL,
+        using location: MagickLocation,
+        cancellation: MagickCancellation?
+    ) -> URL? {
+        // `[0]`: dei formati multipagina (PDF, GIF, DCX) all'anteprima serve
+        // solo la prima immagine.
+        let result = try? ImageMagick.run(
+            location,
+            arguments: ["\(source.path)[0]", "PNG:\(destination.path)"],
+            cancellation: cancellation
+        )
+        guard result?.exitCode == 0,
+              FileManager.default.fileExists(atPath: destination.path) else { return nil }
+        return destination
+    }
+
+    /// Completa le dimensioni in pixel dei file che ImageIO non sa leggere
+    /// chiedendole a `magick identify`. Solo per quelli: un processo per ogni
+    /// file di una cartella trascinata sarebbe uno spreco.
+    private func fillMissingPixelSizes() {
+        guard let location = install?.location else { return }
+        let pending = items.filter { $0.pixelSize == nil }.map(\.url)
+        guard !pending.isEmpty else { return }
+        Task { [weak self] in
+            for url in pending {
+                let size = await Task.detached(priority: .utility) { () -> CGSize? in
+                    guard let output = try? ImageMagick.run(
+                        location,
+                        arguments: ["identify", "-ping", "-format", "%w %h", "\(url.path)[0]"]
+                    ), output.exitCode == 0 else { return nil }
+                    let numbers = output.standardOutput
+                        .split(separator: " ")
+                        .compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                    guard numbers.count == 2 else { return nil }
+                    return CGSize(width: numbers[0], height: numbers[1])
+                }.value
+                guard let self, let size else { continue }
+                guard let index = self.items.firstIndex(where: { $0.url == url }) else { continue }
+                self.items[index].pixelSize = size
+            }
+        }
+    }
+
     private func clearPreview() {
         previewCancellation?.cancel()
         previewCancellation = nil
         previewedItemID = nil
+        originalLoadedItemID = nil
         previewDetail = false
         previewOriginal = nil
         previewResult = nil

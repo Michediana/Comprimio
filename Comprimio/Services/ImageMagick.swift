@@ -407,7 +407,9 @@ enum ImageMagick {
     private static func formatArguments(settings s: ConversionSettings, format: OutputFormat) -> [String] {
         var args: [String] = []
 
-        switch format {
+        // Le opzioni valgono per l'intera famiglia del coder: PJPEG e JPS sono
+        // JPEG a tutti gli effetti, PNG24 e APNG passano dallo stesso encoder.
+        switch format.family {
         case .jpeg:
             if s.jpegProgressive { args += ["-interlace", "Plane"] }
             if let sub = s.chromaSubsampling.magickValue { args += ["-sampling-factor", sub] }
@@ -416,6 +418,11 @@ enum ImageMagick {
         case .webp:
             args += ["-define", "webp:method=\(s.webpMethod)"]
             if s.lossless { args += ["-define", "webp:lossless=true"] }
+        case .jxl:
+            args += ["-define", "jxl:effort=\(s.jxlEffort)"]
+            // Il JPEG XL non ha un define per la codifica senza perdita:
+            // la ottiene la qualità 100, che libjxl interpreta come distanza 0.
+            if s.lossless { args += ["-quality", "100"] }
         default:
             break
         }

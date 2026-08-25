@@ -73,8 +73,11 @@ private struct ConversionTab: View {
     var body: some View {
         SettingsGroup("Formato di destinazione") {
             Picker("Formato", selection: $store.settings.outputFormat) {
-                ForEach(OutputFormat.allCases) { option in
-                    Text(label(for: option)).tag(option)
+                Text(OutputFormat.keepOriginal.label).tag(OutputFormat.keepOriginal)
+                ForEach(availableGroups, id: \.category) { group in
+                    Section(group.category.label) {
+                        ForEach(group.formats) { Text($0.label).tag($0) }
+                    }
                 }
             }
 
@@ -108,14 +111,14 @@ private struct ConversionTab: View {
                         + "non è in grado di produrre AVIF senza perdita.")
                 }
             } else {
-                HelpText("\(format.label) è un formato senza perdita: la qualità non si applica.")
+                HelpText("\(format.label) non prevede un'impostazione di qualità.")
             }
 
             Toggle("Mantieni metadati (EXIF, IPTC, XMP)", isOn: $store.settings.keepMetadata)
             Toggle("Converti in sRGB", isOn: $store.settings.convertToSRGB)
         }
 
-        if format == .jpeg {
+        if format.family == .jpeg {
             SettingsGroup("Opzioni JPEG") {
                 Toggle("JPEG progressivo", isOn: $store.settings.jpegProgressive)
                 Picker("Sottocampionamento croma", selection: $store.settings.chromaSubsampling) {
@@ -125,7 +128,7 @@ private struct ConversionTab: View {
             }
         }
 
-        if format == .png {
+        if format.family == .png {
             SettingsGroup("Opzioni PNG") {
                 ValueSlider(
                     title: "Livello di compressione",
@@ -137,12 +140,14 @@ private struct ConversionTab: View {
                     step: 1,
                     suffix: ""
                 )
-                Toggle("Palette a 8 bit (PNG8)", isOn: $store.settings.pngPalette)
-                HelpText("PNG8 riduce molto il peso su immagini con pochi colori.")
+                if format == .png {
+                    Toggle("Palette a 8 bit (PNG8)", isOn: $store.settings.pngPalette)
+                    HelpText("PNG8 riduce molto il peso su immagini con pochi colori.")
+                }
             }
         }
 
-        if format == .webp {
+        if format.family == .webp {
             SettingsGroup("Opzioni WebP") {
                 ValueSlider(
                     title: "Metodo (lento = più compresso)",
@@ -157,6 +162,24 @@ private struct ConversionTab: View {
             }
         }
 
+        if format.family == .jxl {
+            SettingsGroup("Opzioni JPEG XL") {
+                ValueSlider(
+                    title: "Sforzo (lento = più compresso)",
+                    value: Binding(
+                        get: { Double(store.settings.jxlEffort) },
+                        set: { store.settings.jxlEffort = Int($0) }
+                    ),
+                    range: 1...9,
+                    step: 1,
+                    suffix: ""
+                )
+                HelpText("Lo sforzo influisce solo sul tempo di codifica. "
+                    + "«Senza perdita» corrisponde alla qualità 100: pesa più "
+                    + "di un JPEG XL compresso, ma molto meno di un PNG.")
+            }
+        }
+
         SettingsGroup("Trasparenza") {
             Toggle("Appiattisci su colore di sfondo", isOn: $store.settings.flattenAlpha)
                 .disabled(!format.supportsAlpha)
@@ -168,9 +191,20 @@ private struct ConversionTab: View {
         }
     }
 
-    private func label(for option: OutputFormat) -> String {
-        guard let install = store.install, !install.supports(option) else { return option.label }
-        return "\(option.label) (non disponibile)"
+    /// Il menu elenca solo ciò che questa installazione sa davvero scrivere:
+    /// il catalogo comprende formati che dipendono da delegate opzionali
+    /// (JPEG XL, JPEG 2000, OpenEXR) e mostrarli tutti significherebbe offrire
+    /// scelte che poi falliscono. Il formato già selezionato resta comunque
+    /// visibile, altrimenti sparirebbe dal menu senza spiegazione.
+    private var availableGroups: [(category: FormatCategory, formats: [OutputFormat])] {
+        let selected = store.settings.outputFormat
+        return FormatCategory.allCases.compactMap { category in
+            let formats = OutputFormat.formats(in: category).filter { option in
+                guard let install = store.install else { return true }
+                return install.supports(option) || option == selected
+            }
+            return formats.isEmpty ? nil : (category, formats)
+        }
     }
 
     private var qualityHint: String {

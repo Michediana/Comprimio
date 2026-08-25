@@ -50,6 +50,17 @@ import sys
 
 STAMP = ".comprimio-bundle-stamp"
 
+# Coder che la formula `imagemagick` di Homebrew non compila, perché non
+# dipende da jpeg-xl, openjpeg, openexr né libraw. `imagemagick-full` è la
+# stessa identica versione con quelle dipendenze: da lì si prendono i moduli
+# che mancano, e soltanto quelli.
+#
+# Prendere l'intero albero di imagemagick-full costerebbe il doppio in peso e
+# soprattutto porterebbe libgs: pdf.so e ps.so di quella formula ci sono
+# linkati, e Ghostscript è AGPL. Innestando i singoli moduli, PDF e PostScript
+# restano quelli della formula normale, che scrivono senza Ghostscript.
+EXTRA_CODERS = ("jxl", "jp2", "exr", "dng")
+
 # Le librerie di sistema restano dove sono: sono garantite su ogni Mac.
 SYSTEM_PREFIXES = ("/usr/lib", "/System")
 
@@ -90,6 +101,69 @@ def magick_version(magick):
     if not match:
         raise SystemExit("Impossibile leggere la versione di ImageMagick.")
     return match.group(1)
+
+
+def find_extra_prefix():
+    """
+    Installazione da cui prendere i coder di EXTRA_CODERS, se c'è. Si indica
+    con IMAGEMAGICK_EXTRA_PREFIX, altrimenti si cerca imagemagick-full: è
+    keg-only, quindi sta nel suo prefisso e non si vede da bin/magick.
+    """
+    explicit = os.environ.get("IMAGEMAGICK_EXTRA_PREFIX")
+    candidates = [explicit] if explicit else []
+    candidates += [
+        "/opt/homebrew/opt/imagemagick-full",
+        "/usr/local/opt/imagemagick-full",
+    ]
+    for candidate in candidates:
+        if candidate and os.path.isfile(os.path.join(candidate, "bin", "magick")):
+            return candidate
+    return None
+
+
+def graft_extra_coders(prefix, version, coders_dir):
+    """
+    Copia i moduli di EXTRA_CODERS dentro l'albero in costruzione e restituisce
+    le coppie (sorgente, copia). Le librerie di cui hanno bisogno le porta la
+    chiusura, come per ogni altro modulo.
+
+    La versione deve coincidere: un modulo si lega a MagickCore per simboli e
+    strutture, e montarne uno compilato contro una versione diversa non dà un
+    errore in fase di innesto — dà un formato che a runtime non si registra,
+    o peggio si registra e sbaglia i conti.
+    """
+    extra_version = magick_version(os.path.join(prefix, "bin", "magick"))
+    if extra_version != version:
+        raise SystemExit(
+            f"Versioni diverse: l'albero è ImageMagick {version}, "
+            f"{prefix} è {extra_version}. Allineale prima di innestare i coder "
+            f"(brew upgrade imagemagick imagemagick-full)."
+        )
+    source_dir = find_modules_dir(prefix)
+    if not source_dir:
+        raise SystemExit(f"Nessuna cartella di moduli in {prefix}.")
+
+    def replace(source, copy):
+        # Un modulo può esserci già (dng.so c'è, ma senza libraw) e Homebrew lo
+        # installa in sola lettura: sovrascriverlo di netto fallirebbe.
+        if os.path.exists(copy):
+            os.remove(copy)
+        shutil.copy2(source, copy)
+
+    grafted = []
+    for name in EXTRA_CODERS:
+        source = os.path.join(source_dir, "coders", f"{name}.so")
+        if not os.path.exists(source):
+            raise SystemExit(f"Modulo {name}.so assente da {source_dir}/coders.")
+        copy = os.path.join(coders_dir, f"{name}.so")
+        replace(source, copy)
+        # Il .la è il descrittore con cui ltdl trova il .so: senza, il modulo
+        # non viene nemmeno cercato.
+        la = os.path.join(source_dir, "coders", f"{name}.la")
+        if os.path.exists(la):
+            replace(la, os.path.join(coders_dir, f"{name}.la"))
+        grafted.append((source, copy))
+    return grafted
 
 
 def find_modules_dir(prefix):
@@ -224,17 +298,28 @@ def relocatable_deps(path):
     return result
 
 
-def dependency_closure(roots):
+def dependency_closure(roots, known=None):
     """
-    Restituisce (closure, plan):
+    Restituisce (closure, plan, alias):
     - closure: real_path -> nome del file nel bundle, uno per libreria, così
       la stessa libreria non finisce dentro due volte con due nomi diversi;
     - plan: real_path -> [(riferimento scritto nel Mach-O, real_path)], calcolato
       sui file di origine. Le copie vanno riscritte in base a questo, non
       rianalizzate: nel bundle i nomi cambiano e @rpath non risolverebbe più.
+    - alias: real_path -> nome nel bundle di una libreria che c'è già. I moduli
+      innestati da una seconda installazione arrivano linkati alla *sua* copia
+      di libMagickCore: ha lo stesso nome di file di quella già copiata, e
+      portarla dentro significherebbe sovrascriverne una con l'altra. Si tiene
+      quella dell'albero e ci si punta, che è poi ciò che rende l'innesto
+      possibile — le due installazioni sono lo stesso identico build.
+
+    `known` (nome file -> real_path) elenca ciò che è già nel bundle da una
+    passata precedente: quelle librerie diventano alias invece di copie.
     """
     closure = {}
     plan = {}
+    alias = {}
+    seen = dict(known or {})
     queue = list(roots)
     while queue:
         current = os.path.realpath(queue.pop())
@@ -243,10 +328,16 @@ def dependency_closure(roots):
         deps = relocatable_deps(current)
         plan[current] = deps
         for _, real in deps:
+            leaf = os.path.basename(real)
+            if leaf in seen:
+                if seen[leaf] != real:
+                    alias[real] = leaf
+                continue
             if real not in closure:
-                closure[real] = os.path.basename(real)
+                closure[real] = leaf
+                seen[leaf] = real
                 queue.append(real)
-    return closure, plan
+    return closure, plan, alias
 
 
 # --- riscrittura ---------------------------------------------------------
@@ -369,7 +460,7 @@ def copy_config(prefix, destination):
     return copied
 
 
-def write_manifest(destination, version, modules_relative, config_relatives):
+def write_manifest(destination, version, modules_relative, config_relatives, grafted=()):
     """
     Dice all'app dove sono le cose. I nomi contengono il quantum (Q16HDRI),
     che dipende da come è stata compilata questa installazione: meglio
@@ -381,6 +472,9 @@ def write_manifest(destination, version, modules_relative, config_relatives):
         "coderModulePath": f"{modules_relative}/coders" if modules_relative else None,
         "filterModulePath": f"{modules_relative}/filters" if modules_relative else None,
         "configurePaths": config_relatives,
+        # Solo per tracciabilità: da qui si vede quali coder non vengono dalla
+        # formula `imagemagick`. L'app ignora il campo.
+        "graftedCoders": sorted(grafted),
     }
     with open(os.path.join(destination, "imagemagick-bundle.json"), "w") as handle:
         json.dump(manifest, handle, indent=2)
@@ -546,6 +640,9 @@ def cmd_vendor(vendor):
     modules_dir = None
     modules_relative = None
     module_sources = []
+    module_copies = []
+    extra_sources = []
+    grafted_names = []
     if source_modules:
         modules_relative = os.path.relpath(source_modules, prefix)
         modules_dir = os.path.join(destination, modules_relative)
@@ -553,8 +650,27 @@ def cmd_vendor(vendor):
         for dirpath, _, files in os.walk(source_modules):
             for name in files:
                 if name.endswith(".so"):
-                    module_sources.append(os.path.join(dirpath, name))
+                    source = os.path.join(dirpath, name)
+                    module_sources.append(source)
+                    module_copies.append(
+                        (source, os.path.join(modules_dir, os.path.relpath(source, source_modules)))
+                    )
         log(f"moduli copiati da {modules_relative}: {len(module_sources)}")
+
+        # Coder innestati da una seconda installazione (imagemagick-full).
+        extra_prefix = find_extra_prefix()
+        if extra_prefix:
+            grafted = graft_extra_coders(extra_prefix, version, os.path.join(modules_dir, "coders"))
+            extra_sources = [source for source, _ in grafted]
+            module_copies += grafted
+            grafted_names = [
+                os.path.basename(source).removesuffix(".so") for source, _ in grafted
+            ]
+            log(f"coder innestati da {extra_prefix}: {', '.join(grafted_names)}")
+        else:
+            log("attenzione: imagemagick-full non trovato, l'albero resterà senza "
+                + ", ".join(EXTRA_CODERS).upper()
+                + " (brew install imagemagick-full, oppure IMAGEMAGICK_EXTRA_PREFIX=…)")
         # I .la sono i descrittori libtool con cui ltdl trova i .so: servono.
         # Il campo libdir punta al prefisso originale e va azzerato, altrimenti
         # ltdl carica il .so dell'installazione di sistema invece del nostro.
@@ -568,8 +684,18 @@ def cmd_vendor(vendor):
     else:
         log("build senza moduli caricabili: i coder sono compilati nel binario")
 
-    # 2. Chiusura delle dipendenze: dal binario e da ogni modulo.
-    closure, plan = dependency_closure([magick] + module_sources)
+    # 2. Chiusura delle dipendenze: dal binario e da ogni modulo. I coder
+    #    innestati vengono dopo, così le librerie in comune restano quelle
+    #    dell'installazione di partenza e loro ci si agganciano.
+    closure, plan, alias = dependency_closure([magick] + module_sources)
+    if extra_sources:
+        known = {leaf: real for real, leaf in closure.items()}
+        extra_closure, extra_plan, extra_alias = dependency_closure(extra_sources, known=known)
+        log(f"librerie in più per i coder innestati: {len(extra_closure)}")
+        closure.update(extra_closure)
+        plan.update(extra_plan)
+        alias.update(extra_alias)
+    names = {**closure, **alias}
     for real, leaf in closure.items():
         shutil.copy2(real, os.path.join(lib_dir, leaf))
     log(f"librerie copiate: {len(closure)}")
@@ -579,19 +705,18 @@ def cmd_vendor(vendor):
     shutil.copy2(magick, bundled)
 
     # 4. Riscrittura degli install name, secondo il piano calcolato sui sorgenti.
-    rewrite(bundled, "../lib", plan[os.path.realpath(magick)], closure)
+    rewrite(bundled, "../lib", plan[os.path.realpath(magick)], names)
     for real, leaf in closure.items():
-        rewrite(os.path.join(lib_dir, leaf), "", plan.get(real, []), closure,
+        rewrite(os.path.join(lib_dir, leaf), "", plan.get(real, []), names,
                 set_id=f"@loader_path/{leaf}")
-    for source in module_sources:
-        copy = os.path.join(modules_dir, os.path.relpath(source, source_modules))
+    for source, copy in module_copies:
         depth = os.path.relpath(copy, lib_dir).count(os.sep)
-        rewrite(copy, "/".join([".."] * depth), plan.get(os.path.realpath(source), []), closure)
+        rewrite(copy, "/".join([".."] * depth), plan.get(os.path.realpath(source), []), names)
 
     # 5. Configurazione, delegate, manifest.
     config_relatives = copy_config(prefix, destination)
     prune_delegates(destination, search_path=f"{bin_dir}:/usr/bin:/bin")
-    write_manifest(destination, version, modules_relative, config_relatives)
+    write_manifest(destination, version, modules_relative, config_relatives, grafted_names)
 
     # 6. Verifica.
     checked, problems = verify(destination)

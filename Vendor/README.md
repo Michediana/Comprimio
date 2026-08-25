@@ -34,9 +34,12 @@ Serve un'installazione locale di ImageMagick da cui partire. Il comando
 scrive nella sottocartella dell'architettura del binario di partenza, quindi
 va ripetuto su un Mac di ogni architettura che si vuole supportare:
 
-    brew install imagemagick          # oppure IMAGEMAGICK_PREFIX=/percorso
+    brew install imagemagick imagemagick-full   # oppure IMAGEMAGICK_PREFIX=/percorso
     python3 Scripts/bundle-imagemagick.py vendor Vendor/ImageMagick
     git add Vendor/ImageMagick && git commit
+
+Le due formule vanno tenute alla stessa versione: lo script si ferma se non
+lo sono (vedi sotto).
 
 Lo script verifica da sé che ogni riferimento Mach-O risolva dentro
 l'albero e si ferma altrimenti: un modulo con una dipendenza mancante non
@@ -51,6 +54,34 @@ quella macchina. L'unica eccezione è quando non c'è nessun albero utilizzabile
 lì il bundling viene saltato e l'app cerca un ImageMagick installato sul
 sistema, che è il modo di lavorare su un Mac di cui non si è ancora generato
 l'albero.
+
+### Coder innestati: JPEG XL, JPEG 2000, OpenEXR, raw
+
+La formula `imagemagick` di Homebrew dipende da nove librerie e fra queste non
+ci sono jpeg-xl, openjpeg, openexr né libraw: il suo albero non contiene
+`jxl.so`, `jp2.so`, `exr.so`, e il suo `dng.so` non è linkato a libraw, così i
+raw delle fotocamere finirebbero per passare da un `darktable-cli` che nel
+bundle non c'è. `imagemagick-full` è la stessa identica versione compilata con
+quelle dipendenze.
+
+`bundle-imagemagick.py` prende da lì i soli moduli elencati in `EXTRA_CODERS`
+e li innesta nell'albero, con le librerie che servono loro. Funziona perché le
+due formule sono lo stesso build: i moduli innestati si agganciano al
+`libMagickCore` già presente invece di portarsi dietro il proprio, e lo script
+verifica che le versioni coincidano prima di toccare qualsiasi cosa.
+
+Non si parte direttamente da `imagemagick-full` per due motivi. Il primo è il
+peso: porterebbe librsvg con tutta la coda cairo/pango/X11, e l'albero
+passerebbe da 42 a 55 MB. Il secondo è più serio: i suoi `pdf.so` e `ps.so`
+sono linkati a `libgs`, cioè Ghostscript, che è AGPL — distribuire un'app che
+lo include significa assumersene gli obblighi. Innestando i singoli moduli,
+PDF, PostScript ed EPS restano quelli della formula normale, che li scrivono
+senza Ghostscript.
+
+Se `imagemagick-full` non è installato, lo script lo dice e prosegue: l'albero
+che ne esce è valido, semplicemente senza quei formati. L'app non li mostra
+nemmeno nel menu, perché interroga `magick -list format` all'avvio. Un'altra
+installazione si indica con `IMAGEMAGICK_EXTRA_PREFIX`.
 
 ### Versione minima di macOS
 
