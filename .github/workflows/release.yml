@@ -1,0 +1,227 @@
+# Distribuzione fuori dal Mac App Store: firma Developer ID, notarizzazione,
+# DMG allegato alla release di GitHub. Parte da un tag `v*`.
+#
+# Il canale App Store resta su Xcode Cloud e non c'entra niente con questo:
+# sono due firme diverse sullo stesso commit. Qui l'app è la stessa, sandbox
+# compresa — cambia solo chi la firma e il fatto che sia notarizzata, che è
+# ciò che permette di aprirla con un doppio clic.
+#
+# Segreti richiesti (Settings → Secrets and variables → Actions):
+#   DEVELOPER_ID_P12           certificato «Developer ID Application» + chiave
+#                              privata, esportato in .p12 e codificato base64:
+#                              base64 -i Certificati.p12 | pbcopy
+#   DEVELOPER_ID_P12_PASSWORD  la password scelta durante l'esportazione
+#   NOTARY_KEY_P8              chiave API di App Store Connect (.p8) in base64
+#   NOTARY_KEY_ID              Key ID della stessa chiave
+#   NOTARY_ISSUER_ID           Issuer ID del team
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # Per provare la pipeline senza pubblicare niente.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versione da usare al posto del tag (es. 1.0.1)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TEAM_ID: ALUYQV47T2
+  SCHEME: Comprimio
+  APP_NAME: Comprimio
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versione dal tag
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Versione: $version · build ${{ github.run_number }}"
+
+      - name: Toolchain
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          # Il progetto usa Liquid Glass sotto `#available(macOS 26)` e un
+          # ComprimioIcon.icon: senza SDK 26 la build non passa, e il motivo
+          # è più chiaro detto qui che in mezzo agli errori del compilatore.
+          sdk=$(xcrun --sdk macosx --show-sdk-version)
+          echo "SDK macOS $sdk"
+          case "$sdk" in 26.*|2[7-9].*|[3-9][0-9].*) ;; *)
+            echo "::error::serve l'SDK macOS 26 o successivo, trovato $sdk"; exit 1 ;;
+          esac
+
+      - name: Portachiavi temporaneo con il Developer ID
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/build.keychain-db"
+          # Password usa e getta: il portachiavi vive quanto il job.
+          password=$(uuidgen)
+          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" \
+            -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/cert.p12"
+          # Senza questo codesign si blocca su un dialogo che nessuno vedrà mai.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+
+          identity=$(security find-identity -v -p codesigning "$keychain" \
+            | grep "Developer ID Application" | head -1 | awk '{print $2}')
+          if [ -z "$identity" ]; then
+            echo "::error::nessun certificato «Developer ID Application» nel .p12"
+            security find-identity -v -p codesigning "$keychain"
+            exit 1
+          fi
+          echo "::add-mask::$identity"
+          echo "IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "Identità trovata."
+
+      - name: Archivia
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project "$APP_NAME.xcodeproj" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/$APP_NAME.xcarchive" \
+            -destination "generic/platform=macOS" \
+            MARKETING_VERSION="${{ steps.version.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$IDENTITY" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $KEYCHAIN"
+
+      - name: Esporta con Developer ID
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>developer-id</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Developer ID Application</string>
+            <key>destination</key><string>export</string>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/$APP_NAME.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Prepara e controlla la firma
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/export/$APP_NAME.app"
+          Scripts/notarization-ready.sh "$app" "$IDENTITY" "$KEYCHAIN"
+
+      - name: Notarizza
+        env:
+          KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/export/$APP_NAME.app"
+          echo "$KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          trap 'rm -f "$RUNNER_TEMP/notary.p8"' EXIT
+
+          # Ditto e non zip: zip perde i link simbolici del bundle.
+          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/notarize.zip"
+
+          set +e
+          out=$(xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$RUNNER_TEMP/notary.p8" --key-id "$KEY_ID" \
+            --issuer "$ISSUER_ID" --wait --timeout 30m 2>&1)
+          status=$?
+          set -e
+          echo "$out"
+
+          id=$(echo "$out" | grep -m1 "id:" | awk '{print $2}')
+          if [ $status -ne 0 ] || ! echo "$out" | grep -q "status: Accepted"; then
+            echo "::error::notarizzazione respinta — il log dice quale file"
+            [ -n "$id" ] && xcrun notarytool log "$id" \
+              --key "$RUNNER_TEMP/notary.p8" --key-id "$KEY_ID" --issuer "$ISSUER_ID"
+            exit 1
+          fi
+
+          # Il ticket va cucito nell'app, o chi la apre offline vede comunque
+          # l'avviso di Gatekeeper.
+          xcrun stapler staple "$app"
+          xcrun stapler validate "$app"
+
+      - name: Verdetto di Gatekeeper
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/export/$APP_NAME.app"
+          spctl -a -vvv -t exec "$app"
+          echo "Accettata."
+
+      - name: DMG
+        id: dmg
+        run: |
+          set -euo pipefail
+          dmg="$RUNNER_TEMP/$APP_NAME-${{ steps.version.outputs.version }}.dmg"
+          Scripts/make-dmg.sh "$RUNNER_TEMP/export/$APP_NAME.app" "$dmg"
+          xcrun stapler staple "$dmg"
+          echo "dmg=$dmg" >> "$GITHUB_OUTPUT"
+
+      - name: Pubblica sulla release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$APP_NAME ${{ steps.version.outputs.version }}" \
+            --generate-notes --verify-tag 2>/dev/null \
+            || echo "release già esistente, allego e basta"
+          gh release upload "$GITHUB_REF_NAME" "${{ steps.dmg.outputs.dmg }}" --clobber
+
+      - name: Artefatto anche senza tag
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Comprimio-dmg
+          path: ${{ steps.dmg.outputs.dmg }}
+
+      - name: Butta il portachiavi
+        if: always()
+        run: |
+          security list-keychains -d user -s login.keychain-db || true
+          [ -n "${KEYCHAIN:-}" ] && security delete-keychain "$KEYCHAIN" || true
