@@ -33,21 +33,33 @@ trap 'rm -rf "$work"' EXIT
 
 fail() { echo "::error::$*" >&2; exit 1; }
 
-# Un Mach-O eseguibile, non una dylib: l'hardened runtime riguarda i processi.
-is_executable_macho() {
-    grep -q "Mach-O.*executable" <<< "$(file -b "$1" 2>/dev/null)"
-}
-
 signature_info() { codesign --display --verbose=4 "$1" 2>&1 || true; }
 has_runtime()    { grep -q "^CodeDirectory.*flags=.*runtime" <<< "$(signature_info "$1")"; }
 has_timestamp()  { grep -q "^Timestamp=" <<< "$(signature_info "$1")"; }
 
+# `machos` è tutto ciò che va firmato, `executables` il sottoinsieme che deve
+# anche avere l'hardened runtime — quello riguarda i processi, non le
+# librerie. La distinzione la fa il contenuto del file, non il nome né i
+# permessi: i descrittori `.la` di libtool nell'albero ImageMagick hanno il
+# bit di esecuzione e sono testo.
+machos=()
 executables=()
 while IFS= read -r candidate; do
-    is_executable_macho "$candidate" && executables+=("$candidate")
-done < <(find "$app" -type f -perm -u+x)
+    kind=$(file -b "$candidate" 2>/dev/null || true)
+    case "$kind" in
+        *Mach-O*) machos+=("$candidate") ;;
+        *) continue ;;
+    esac
+    case "$kind" in
+        *Mach-O*executable*) executables+=("$candidate") ;;
+    esac
+done < <(find "$app" -type f)
 
-echo "Eseguibili nel bundle: ${#executables[@]}"
+# Un array vuoto sotto `set -u` darebbe un errore di bash incomprensibile
+# invece del vero problema, che è un percorso sbagliato.
+[ ${#machos[@]} -gt 0 ] || fail "nessun Mach-O trovato in $app"
+
+echo "Mach-O nel bundle: ${#machos[@]} (di cui eseguibili: ${#executables[@]})"
 
 # --- rimedio ---------------------------------------------------------------
 # I nidificati per primi: rifirmare un eseguibile interno invalida la firma
@@ -114,16 +126,15 @@ esac
 # firmato dalla fase di build, che in una build locale usa un'identità
 # diversa da quella di distribuzione.
 intruders=0
-while IFS= read -r macho; do
-    case "$(authority_of "$macho")" in
-        "Developer ID Application:"*) ;;
-        *)
-            [ "$intruders" -lt 5 ] && echo "  firmato male: ${macho#"$app/"} → $(authority_of "$macho")"
-            intruders=$((intruders + 1))
-            ;;
+for macho in "${machos[@]}"; do
+    signer=$(authority_of "$macho")
+    case "$signer" in
+        "Developer ID Application:"*) continue ;;
     esac
-done < <(find "$app" -type f \( -perm -u+x -o -name "*.dylib" -o -name "*.so" \))
-[ "$intruders" -gt 0 ] && fail "$intruders file non firmati con il Developer ID"
+    [ "$intruders" -lt 5 ] && echo "  firmato male: ${macho#"$app/"} → ${signer:-nessuna firma}"
+    intruders=$((intruders + 1))
+done
+[ "$intruders" -gt 0 ] && fail "$intruders Mach-O non firmati con il Developer ID"
 
 codesign --verify --deep --strict --verbose=1 "$app"
 
