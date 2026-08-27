@@ -98,11 +98,32 @@ fi
 
 # Nessuna pipeline che possa chiudersi in anticipo sotto `pipefail`: si
 # cattura tutto e si cerca dentro la stringa.
-authority=$(grep -m1 "^Authority=" <<< "$(signature_info "$app")" | cut -d= -f2- || true)
+authority_of() {
+    grep -m1 "^Authority=" <<< "$(signature_info "$1")" | cut -d= -f2- || true
+}
+
+authority=$(authority_of "$app")
 case "$authority" in
     "Developer ID Application:"*) ;;
     *) fail "firmata da «${authority}», serve un «Developer ID Application»" ;;
 esac
+
+# Non basta che sia firmato il bundle: la notarizzazione guarda ogni pezzo di
+# codice che contiene, e ne rifiuta uno firmato con un certificato di
+# sviluppo o rimasto ad-hoc. Succede davvero — l'albero ImageMagick viene
+# firmato dalla fase di build, che in una build locale usa un'identità
+# diversa da quella di distribuzione.
+intruders=0
+while IFS= read -r macho; do
+    case "$(authority_of "$macho")" in
+        "Developer ID Application:"*) ;;
+        *)
+            [ "$intruders" -lt 5 ] && echo "  firmato male: ${macho#"$app/"} → $(authority_of "$macho")"
+            intruders=$((intruders + 1))
+            ;;
+    esac
+done < <(find "$app" -type f \( -perm -u+x -o -name "*.dylib" -o -name "*.so" \))
+[ "$intruders" -gt 0 ] && fail "$intruders file non firmati con il Developer ID"
 
 codesign --verify --deep --strict --verbose=1 "$app"
 

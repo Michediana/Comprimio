@@ -150,40 +150,21 @@ jobs:
           app="$RUNNER_TEMP/export/$APP_NAME.app"
           Scripts/notarization-ready.sh "$app" "$IDENTITY" "$KEYCHAIN"
 
-      - name: Notarizza
+      - name: Chiave di notarizzazione
         env:
           KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          echo "$KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+
+      - name: Notarizza l'app
+        env:
           KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
         run: |
           set -euo pipefail
-          app="$RUNNER_TEMP/export/$APP_NAME.app"
-          echo "$KEY_P8" | base64 --decode > "$RUNNER_TEMP/notary.p8"
-          trap 'rm -f "$RUNNER_TEMP/notary.p8"' EXIT
-
-          # Ditto e non zip: zip perde i link simbolici del bundle.
-          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/notarize.zip"
-
-          set +e
-          out=$(xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
-            --key "$RUNNER_TEMP/notary.p8" --key-id "$KEY_ID" \
-            --issuer "$ISSUER_ID" --wait --timeout 30m 2>&1)
-          status=$?
-          set -e
-          echo "$out"
-
-          id=$(echo "$out" | grep -m1 "id:" | awk '{print $2}')
-          if [ $status -ne 0 ] || ! echo "$out" | grep -q "status: Accepted"; then
-            echo "::error::notarizzazione respinta — il log dice quale file"
-            [ -n "$id" ] && xcrun notarytool log "$id" \
-              --key "$RUNNER_TEMP/notary.p8" --key-id "$KEY_ID" --issuer "$ISSUER_ID"
-            exit 1
-          fi
-
-          # Il ticket va cucito nell'app, o chi la apre offline vede comunque
-          # l'avviso di Gatekeeper.
-          xcrun stapler staple "$app"
-          xcrun stapler validate "$app"
+          Scripts/notarize.sh "$RUNNER_TEMP/export/$APP_NAME.app" \
+            "$RUNNER_TEMP/notary.p8" "$KEY_ID" "$ISSUER_ID"
 
       - name: Verdetto di Gatekeeper
         run: |
@@ -194,12 +175,27 @@ jobs:
 
       - name: DMG
         id: dmg
+        env:
+          KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
         run: |
           set -euo pipefail
           dmg="$RUNNER_TEMP/$APP_NAME-${{ steps.version.outputs.version }}.dmg"
+          # L'app dentro è già staplata: chi la trascina in Applicazioni la
+          # apre anche senza rete.
           Scripts/make-dmg.sh "$RUNNER_TEMP/export/$APP_NAME.app" "$dmg"
-          xcrun stapler staple "$dmg"
+          # L'immagine è un artefatto a sé e Gatekeeper la controlla quando
+          # viene montata: va firmata e notarizzata per conto suo.
+          codesign --force --timestamp --sign "$IDENTITY" "$dmg"
+          Scripts/notarize.sh "$dmg" "$RUNNER_TEMP/notary.p8" "$KEY_ID" "$ISSUER_ID"
           echo "dmg=$dmg" >> "$GITHUB_OUTPUT"
+
+      - name: Verdetto di Gatekeeper sul DMG
+        run: |
+          set -euo pipefail
+          spctl -a -vvv -t open --context context:primary-signature \
+            "${{ steps.dmg.outputs.dmg }}"
+          echo "Immagine accettata."
 
       - name: Pubblica sulla release
         if: startsWith(github.ref, 'refs/tags/')
@@ -220,8 +216,9 @@ jobs:
           name: Comprimio-dmg
           path: ${{ steps.dmg.outputs.dmg }}
 
-      - name: Butta il portachiavi
+      - name: Butta portachiavi e chiave
         if: always()
         run: |
+          rm -f "$RUNNER_TEMP/notary.p8"
           security list-keychains -d user -s login.keychain-db || true
           [ -n "${KEYCHAIN:-}" ] && security delete-keychain "$KEYCHAIN" || true
