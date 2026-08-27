@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/icon.webp" alt="" width="128">
+</p>
+
 # Comprimio
 
 A native macOS app for converting, compressing and resizing images in batches.
@@ -6,6 +10,8 @@ Drop in a folder, set the options once, watch the previews, convert everything.
 ImageMagick and its coders ship **inside the app**. There is nothing to install,
 no Homebrew, no command line, and no network access at any point — your images
 never leave your Mac.
+
+![](docs/images/screenshot.webp)
 
 ---
 
