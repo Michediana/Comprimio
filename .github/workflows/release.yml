@@ -197,17 +197,25 @@ jobs:
             "${{ steps.dmg.outputs.dmg }}"
           echo "Immagine accettata."
 
-      - name: Pubblica sulla release
+      - name: Allega alla release in bozza
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$APP_NAME ${{ steps.version.outputs.version }}" \
-            --generate-notes --verify-tag 2>/dev/null \
-            || echo "release già esistente, allego e basta"
+          # Sempre in bozza: la pubblicazione è un gesto manuale, così le note
+          # si possono rileggere e il DMG si può provare prima che chiunque
+          # altro lo veda.
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "release già presente per $GITHUB_REF_NAME, allego e basta"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$APP_NAME ${{ steps.version.outputs.version }}" \
+              --generate-notes --verify-tag --draft
+          fi
           gh release upload "$GITHUB_REF_NAME" "${{ steps.dmg.outputs.dmg }}" --clobber
+
+          echo "::notice::bozza pronta: $(gh release view "$GITHUB_REF_NAME" --json url --jq .url)"
 
       - name: Artefatto anche senza tag
         if: "!startsWith(github.ref, 'refs/tags/')"
