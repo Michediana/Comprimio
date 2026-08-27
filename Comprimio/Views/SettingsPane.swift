@@ -551,14 +551,6 @@ private struct DestinationTab: View {
                         .lineLimit(2)
                         .textSelection(.enabled)
                 }
-                LabeledContent("Source") {
-                    HStack(spacing: 5) {
-                        Image(systemName: install.source == .bundled ? "shippingbox.fill" : "terminal")
-                            .foregroundStyle(install.source == .bundled ? Color.green : Color.secondary)
-                        Text(install.source.label)
-                            .font(.caption)
-                    }
-                }
                 LabeledContent("Binary") {
                     Text(install.executable.path)
                         .font(.caption)
@@ -566,17 +558,14 @@ private struct DestinationTab: View {
                         .truncationMode(.head)
                         .textSelection(.enabled)
                 }
-                if install.source == .bundled {
-                    HelpText("""
-                        Comprimio needs no installation: ImageMagick and its coders live \
-                        inside the app.
-                        """)
-                }
+                HelpText("""
+                    Comprimio needs no installation: ImageMagick and its coders live \
+                    inside the app.
+                    """)
             } else {
                 WarningText("No installation detected.")
             }
             HStack {
-                Button("Choose Binary…") { store.chooseMagickBinary() }
                 Button("Detect Again") { store.detectImageMagick() }
             }
             .controlSize(.small)

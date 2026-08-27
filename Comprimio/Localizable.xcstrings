@@ -1620,34 +1620,6 @@
         }
       }
     },
-    "bundled with the app" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "in der App enthalten"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "incluido en la app"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "inclus dans l’app"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "incluso nell’app"
-          }
-        }
-      }
-    },
     "Cancel" : {
       "localizations" : {
         "de" : {
@@ -1812,34 +1784,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scegli"
-          }
-        }
-      }
-    },
-    "Choose Binary…" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Binärdatei wählen…"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elegir binario…"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choisir le binaire…"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scegli binario…"
           }
         }
       }
@@ -2348,34 +2292,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "converto il colore"
-          }
-        }
-      }
-    },
-    "Copy Command" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Befehl kopieren"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copiar comando"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copier la commande"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copia comando"
           }
         }
       }
@@ -3883,34 +3799,6 @@
         }
       }
     },
-    "ImageMagick not found: the copy bundled with the app is missing. Install it with “brew install imagemagick”, or point the app at the magick binary yourself." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ImageMagick nicht gefunden: Die mitgelieferte Kopie fehlt. Installieren Sie es mit „brew install imagemagick“, oder geben Sie den Pfad zur magick-Binärdatei selbst an."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No se ha encontrado ImageMagick: falta la copia incluida en la app. Instálalo con «brew install imagemagick» o indica tú mismo la ruta del binario magick."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ImageMagick est introuvable : la copie incluse dans l’app est manquante. Installez-le avec « brew install imagemagick », ou indiquez vous-même le chemin du binaire magick."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ImageMagick non trovato: la copia inclusa nell’app risulta mancante. Installalo con «brew install imagemagick» oppure indica manualmente il percorso del binario magick."
-          }
-        }
-      }
-    },
     "In progress…" : {
       "localizations" : {
         "de" : {
@@ -3935,62 +3823,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In corso…"
-          }
-        }
-      }
-    },
-    "Install ImageMagick to process images." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Installieren Sie ImageMagick, um Bilder zu verarbeiten."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Instala ImageMagick para procesar imágenes."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Installez ImageMagick pour traiter les images."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Installa ImageMagick per elaborare le immagini."
-          }
-        }
-      }
-    },
-    "installed on the system" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "auf dem System installiert"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "instalado en el sistema"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "installé sur le système"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "installato sul sistema"
           }
         }
       }
@@ -6859,34 +6691,6 @@
         }
       }
     },
-    "Select the ImageMagick magick binary." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wählen Sie die magick-Binärdatei von ImageMagick."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Selecciona el binario magick de ImageMagick."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sélectionnez le binaire magick d’ImageMagick."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seleziona il binario magick di ImageMagick."
-          }
-        }
-      }
-    },
     "Set DPI" : {
       "localizations" : {
         "de" : {
@@ -7136,34 +6940,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Peso ridotto, artefatti visibili sui dettagli."
-          }
-        }
-      }
-    },
-    "Source" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Herkunft"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Origen"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Origine"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Origine"
           }
         }
       }
@@ -8407,6 +8183,146 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Riduci"
+          }
+        }
+      }
+    },
+    "Cannot write to “%@”: permission denied." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schreiben in „%@“ nicht möglich: Zugriff verweigert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede escribir en «%@»: permiso denegado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d’écrire dans « %@ » : autorisation refusée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile scrivere in «%@»: permesso negato."
+          }
+        }
+      }
+    },
+    "Comprimio cannot process images right now." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio kann derzeit keine Bilder verarbeiten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio no puede procesar imágenes en este momento."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio ne peut pas traiter d’images pour le moment."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio non può elaborare immagini in questo momento."
+          }
+        }
+      }
+    },
+    "Comprimio needs your permission to save the results in “%@”. Confirm the folder to continue." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio benötigt Ihre Erlaubnis, die Ergebnisse in „%@“ zu sichern. Bestätigen Sie den Ordner, um fortzufahren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio necesita tu permiso para guardar los resultados en «%@». Confirma la carpeta para continuar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio a besoin de votre autorisation pour enregistrer les résultats dans « %@ ». Confirmez le dossier pour continuer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio ha bisogno del tuo permesso per salvare i risultati in «%@». Conferma la cartella per continuare."
+          }
+        }
+      }
+    },
+    "Grant Access" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zugriff erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir acceso"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser l’accès"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti accesso"
+          }
+        }
+      }
+    },
+    "The copy of ImageMagick bundled with Comprimio is missing or unusable. Reinstalling the app should restore it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die mit Comprimio gelieferte Kopie von ImageMagick fehlt oder ist unbrauchbar. Eine Neuinstallation der App sollte sie wiederherstellen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copia de ImageMagick incluida en Comprimio falta o no se puede usar. Reinstalar la app debería restaurarla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copie d’ImageMagick fournie avec Comprimio est absente ou inutilisable. Réinstaller l’app devrait la restaurer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copia di ImageMagick inclusa in Comprimio manca o non è utilizzabile. Reinstallare l’app dovrebbe ripristinarla."
           }
         }
       }

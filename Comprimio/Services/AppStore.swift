@@ -97,9 +97,8 @@ final class AppStore: ObservableObject {
         guard let location = ImageMagick.locate() else {
             install = nil
             installError = String(localized: """
-                ImageMagick not found: the copy bundled with the app is missing. \
-                Install it with “brew install imagemagick”, or point the app at the magick \
-                binary yourself.
+                The copy of ImageMagick bundled with Comprimio is missing or unusable. \
+                Reinstalling the app should restore it.
                 """)
             return
         }
@@ -120,6 +119,9 @@ final class AppStore: ObservableObject {
     // MARK: - Gestione della lista
 
     func add(urls: [URL]) {
+        for url in urls where (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
+            FolderAccess.shared.remember(url)
+        }
         let expanded = expand(urls: urls)
         let existing = Set(items.map(\.id))
         let newItems = expanded
@@ -205,6 +207,7 @@ final class AppStore: ObservableObject {
         panel.canCreateDirectories = true
         panel.prompt = String(localized: "Choose")
         if panel.runModal() == .OK, let url = panel.url {
+            FolderAccess.shared.remember(url)
             settings.customFolderPath = url.path
             settings.destination = .customFolder
         }
@@ -223,21 +226,6 @@ final class AppStore: ObservableObject {
             """)
         if panel.runModal() == .OK, let url = panel.url {
             settings.watermark.imagePath = url.path
-        }
-    }
-
-    func chooseMagickBinary() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = String(localized: "Use")
-        panel.message = String(localized: "Select the ImageMagick magick binary.")
-        panel.directoryURL = URL(fileURLWithPath: "/opt/homebrew/bin")
-        panel.showsHiddenFiles = true
-        if panel.runModal() == .OK, let url = panel.url {
-            ImageMagick.customPath = url.path
-            detectImageMagick()
         }
     }
 
@@ -270,6 +258,7 @@ final class AppStore: ObservableObject {
 
     func startProcessing() {
         guard let install, !isProcessing, !items.isEmpty else { return }
+        guard ensureDestinationAccess() else { return }
 
         isProcessing = true
         processedCount = 0
@@ -348,6 +337,35 @@ final class AppStore: ObservableObject {
         processingTask = nil
         isProcessing = false
         itemProgress = [:]
+    }
+
+    /// Apre l'accesso alle cartelle in cui la conversione andrà a scrivere,
+    /// chiedendolo all'utente se manca.
+    ///
+    /// Sotto sandbox scrivere accanto agli originali non è scontato: se i file
+    /// sono stati scelti uno per uno, il permesso riguarda quei file e non la
+    /// cartella. Chiederlo qui, una volta per cartella e prima di cominciare,
+    /// evita che la conversione fallisca a metà lista.
+    private func ensureDestinationAccess() -> Bool {
+        var folders: [URL] = []
+        for item in items {
+            let folder = ImageMagick.outputURL(for: item.url, settings: settings)
+                .deletingLastPathComponent().standardizedFileURL
+            if !folders.contains(folder) { folders.append(folder) }
+        }
+
+        let access = FolderAccess.shared
+        for folder in folders {
+            if access.canWrite(to: folder) { continue }
+            access.restore(folder)
+            if access.canWrite(to: folder) { continue }
+            guard access.requestAccess(to: folder) else {
+                lastRunSummary = String(localized:
+                    "Cannot write to “\(folder.lastPathComponent)”: permission denied.")
+                return false
+            }
+        }
+        return true
     }
 
     /// Lavoro pesante: gira fuori dal main actor.

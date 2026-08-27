@@ -97,8 +97,6 @@ struct ContentView: View {
 struct MagickMissingBanner: View {
     @EnvironmentObject private var store: AppStore
 
-    private let installCommand = "brew install imagemagick"
-
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -108,17 +106,12 @@ struct MagickMissingBanner: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("ImageMagick not available")
                     .font(.headline)
-                Text(store.installError ?? String(localized: "Install ImageMagick to process images."))
+                Text(store.installError ?? String(localized: "Comprimio cannot process images right now."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack(spacing: 8) {
-                    Button("Copy Command") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(installCommand, forType: .string)
-                    }
-                    Button("Choose Binary…") { store.chooseMagickBinary() }
                     Button("Try Again") { store.detectImageMagick() }
                 }
                 .controlSize(.small)

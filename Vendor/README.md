@@ -8,6 +8,9 @@ con gli install name riscritti in forma relativa a `@loader_path`. La fase di
 build «Includi ImageMagick nel bundle» copia in
 `Comprimio.app/Contents/Resources/ImageMagick` l'albero delle architetture
 indicate da `ARCHS` e lo rifirma con l'identità della macchina che compila.
+Il solo `bin/magick` riceve gli entitlement di `Scripts/magick.entitlements`:
+sul Mac App Store ogni eseguibile del bundle deve dichiarare la sandbox, e
+`magick` la eredita da Comprimio invece di averne una propria.
 
 Le architetture sono alberi separati perché ImageMagick si installa come
 binario nativo: da un Mac Intel non si produce l'albero arm64, né viceversa.
@@ -51,9 +54,12 @@ Se manca l'albero di un'architettura richiesta da `ARCHS`, la build si ferma
 con un errore: un bundling parziale darebbe un'app che non parte proprio là
 dove l'albero manca, e non ci si accorgerebbe di nulla fino al primo avvio su
 quella macchina. L'unica eccezione è quando non c'è nessun albero utilizzabile:
-lì il bundling viene saltato e l'app cerca un ImageMagick installato sul
-sistema, che è il modo di lavorare su un Mac di cui non si è ancora generato
-l'albero.
+lì il bundling viene saltato e la build passa lo stesso, così su un Mac di cui
+non si è ancora generato l'albero si può comunque lavorare sull'interfaccia.
+L'app che ne esce si avvia ma non converte niente: dalla sandbox un
+ImageMagick installato sulla macchina non è raggiungibile, e caricarne le
+dylib violerebbe comunque la library validation, quindi quella nel bundle è
+l'unica copia che Comprimio sa usare.
 
 ### Coder innestati: JPEG XL, JPEG 2000, OpenEXR, raw
 

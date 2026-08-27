@@ -40,6 +40,7 @@ vengono fuse con lipo in un albero universale.
 """
 
 import glob
+import hashlib
 import json
 import os
 import platform
@@ -49,6 +50,10 @@ import subprocess
 import sys
 
 STAMP = ".comprimio-bundle-stamp"
+
+# Entitlement del solo `magick`: vedi codesign_tree.
+ENTITLEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "magick.entitlements")
 
 # Coder che la formula `imagemagick` di Homebrew non compila, perché non
 # dipende da jpeg-xl, openjpeg, openexr né libraw. `imagemagick-full` è la
@@ -485,10 +490,16 @@ def codesign_tree(root, identity=None):
     """
     Firma ogni Mach-O. Il codice annidato va firmato prima dell'app che lo
     contiene, altrimenti la firma del bundle non è valida.
+
+    Il solo `bin/magick` riceve gli entitlement di magick.entitlements: è un
+    eseguibile, e sul Mac App Store ogni eseguibile del bundle deve dichiarare
+    la sandbox. Le dylib e i moduli non ne prendono — non sono processi, e un
+    entitlement su una libreria fa fallire la validazione.
     """
     if identity is None:
         identity = os.environ.get("EXPANDED_CODE_SIGN_IDENTITY") or "-"
     adhoc = identity == "-"
+    executable = os.path.join(root, "bin", "magick")
 
     targets = [
         os.path.join(dirpath, name)
@@ -499,6 +510,8 @@ def codesign_tree(root, identity=None):
     failures = 0
     for path in targets:
         args = ["codesign", "--force", "--sign", identity]
+        if path == executable and os.path.exists(ENTITLEMENTS):
+            args += ["--entitlements", ENTITLEMENTS]
         if adhoc:
             # Con una firma ad-hoc l'hardened runtime attiva la library
             # validation, che confronta i Team ID: assenti da entrambe le
@@ -753,7 +766,8 @@ def cmd_install(vendor, destination):
         log(f"nessun ImageMagick versionato in {vendor}: bundling saltato.")
         log("Ricostruiscilo con: Scripts/bundle-imagemagick.py vendor "
             f"{os.path.relpath(vendor) if vendor else 'Vendor/ImageMagick'}")
-        log("Senza di esso l'app cercherà un ImageMagick installato sul sistema.")
+        log("L'app che ne esce si avvia ma non converte niente: la copia nel bundle "
+            "è l'unica che Comprimio sa usare.")
         return
 
     wanted = wanted_arches()
@@ -764,7 +778,8 @@ def cmd_install(vendor, destination):
             "bundling saltato.")
         log(f"Generalo su una macchina {wanted[0]} con: "
             f"Scripts/bundle-imagemagick.py vendor {os.path.relpath(vendor)}")
-        log("Senza di esso l'app cercherà un ImageMagick installato sul sistema.")
+        log("L'app che ne esce si avvia ma non converte niente: la copia nel bundle "
+            "è l'unica che Comprimio sa usare.")
         return
     if missing:
         # Bundling parziale significa app che non parte sulle architetture
@@ -801,7 +816,13 @@ def cmd_install(vendor, destination):
     stamp_path = os.path.join(destination, STAMP)
     newest = max(os.path.getmtime(os.path.join(available[arch], "imagemagick-bundle.json"))
                  for arch in selected)
-    stamp = f"{version}|{'+'.join(selected)}|{identity}|{newest}"
+    # Gli entitlement entrano nello stamp: cambiarli cambia la firma, e senza
+    # questo la copia già installata verrebbe considerata aggiornata.
+    entitlements_digest = (
+        hashlib.sha256(open(ENTITLEMENTS, "rb").read()).hexdigest()[:12]
+        if os.path.exists(ENTITLEMENTS) else "none"
+    )
+    stamp = f"{version}|{'+'.join(selected)}|{identity}|{newest}|{entitlements_digest}"
     if os.path.exists(stamp_path) and open(stamp_path).read().strip() == stamp:
         log(f"ImageMagick {version} ({'+'.join(selected)}) già installato e aggiornato: "
             "niente da fare.")

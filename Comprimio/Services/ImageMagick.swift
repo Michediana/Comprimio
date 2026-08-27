@@ -64,24 +64,10 @@ final class MagickCancellation: @unchecked Sendable {
     }
 }
 
-/// Da dove arriva il binario `magick` che stiamo usando.
-enum MagickSource: Sendable {
-    case bundled          // incluso in Comprimio.app
-    case system           // installato sulla macchina (Homebrew, MacPorts…)
-
-    var label: String {
-        switch self {
-        case .bundled: return String(localized: "bundled with the app")
-        case .system: return String(localized: "installed on the system")
-        }
-    }
-}
-
 /// Binario `magick` con l'ambiente che gli serve per trovare i propri moduli.
 struct MagickLocation: Sendable {
     let executable: URL
     let environment: [String: String]
-    let source: MagickSource
 }
 
 struct MagickInstall: Sendable {
@@ -90,7 +76,6 @@ struct MagickInstall: Sendable {
     let writableFormats: Set<String>
 
     var executable: URL { location.executable }
-    var source: MagickSource { location.source }
 
     func supports(_ format: OutputFormat) -> Bool {
         guard let name = format.magickName else { return true }
@@ -125,50 +110,14 @@ enum PreviewQuality: Equatable, Sendable {
 
 enum ImageMagick {
 
-    /// Percorso impostato manualmente dall'utente, se presente.
-    static var customPath: String? {
-        get { UserDefaults.standard.string(forKey: "magickPath") }
-        set { UserDefaults.standard.set(newValue, forKey: "magickPath") }
-    }
-
-    private static let searchPaths = [
-        "/opt/homebrew/bin/magick",
-        "/usr/local/bin/magick",
-        "/opt/local/bin/magick",
-        "/usr/bin/magick"
-    ]
-
     // MARK: - Discovery
 
+    /// L'unico ImageMagick che l'app usa è quello incluso nel bundle. Una
+    /// copia installata sulla macchina non è un'alternativa praticabile:
+    /// sotto sandbox non è raggiungibile, e caricarne le dylib violerebbe
+    /// comunque la library validation.
     static func locate() -> MagickLocation? {
-        // Un percorso scelto a mano dall'utente ha la precedenza su tutto.
-        if let custom = customPath, !custom.isEmpty,
-           FileManager.default.isExecutableFile(atPath: custom) {
-            return MagickLocation(
-                executable: URL(fileURLWithPath: custom),
-                environment: ProcessInfo.processInfo.environment,
-                source: .system
-            )
-        }
-        if let bundled = bundledLocation() {
-            return bundled
-        }
-        for path in searchPaths where FileManager.default.isExecutableFile(atPath: path) {
-            return systemLocation(URL(fileURLWithPath: path))
-        }
-        // Ultimo tentativo: chiedi alla shell di login (PATH personalizzato).
-        if let found = try? shellWhich(), FileManager.default.isExecutableFile(atPath: found) {
-            return systemLocation(URL(fileURLWithPath: found))
-        }
-        return nil
-    }
-
-    private static func systemLocation(_ executable: URL) -> MagickLocation {
-        MagickLocation(
-            executable: executable,
-            environment: ProcessInfo.processInfo.environment,
-            source: .system
-        )
+        bundledLocation()
     }
 
     /// La copia inclusa in Contents/Resources/ImageMagick, se presente.
@@ -210,7 +159,7 @@ enum ImageMagick {
         // dipendere da cosa c'è installato sulla macchina dell'utente.
         environment["PATH"] = "\(root.appendingPathComponent("bin").path):/usr/bin:/bin"
 
-        return MagickLocation(executable: executable, environment: environment, source: .bundled)
+        return MagickLocation(executable: executable, environment: environment)
     }
 
     /// Architettura di questo processo, nella codifica cputype di Mach-O.
@@ -260,13 +209,6 @@ enum ImageMagick {
             }
         }
         return false
-    }
-
-    private static func shellWhich() throws -> String? {
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        let out = try run(URL(fileURLWithPath: shell), arguments: ["-l", "-c", "command -v magick"])
-        let trimmed = out.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Interroga il binario per versione e formati scrivibili.

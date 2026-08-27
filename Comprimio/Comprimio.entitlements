@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Obbligatoria sul Mac App Store. Vale anche per `magick` nel bundle,
+	     che la eredita: vedi Scripts/magick.entitlements. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- I file e le cartelle scelti dall'utente nei pannelli. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<!-- Bookmark con security scope: senza questo la cartella di destinazione
+	     scelta una volta non sarebbe più raggiungibile al lancio successivo,
+	     perché il permesso dei pannelli muore con la sessione. -->
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+</dict>
+</plist>

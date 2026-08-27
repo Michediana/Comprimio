@@ -26,7 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        MainActor.assumeIsolated { AppStore.shared.cancelAllWork() }
+        MainActor.assumeIsolated {
+            AppStore.shared.cancelAllWork()
+            FolderAccess.shared.releaseAll()
+        }
     }
 }
 

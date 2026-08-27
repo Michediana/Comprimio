@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	    `magick` è un eseguibile a sé dentro il bundle, e sul Mac App Store
+	    ogni eseguibile deve dichiarare la sandbox (ITMS-90296). Con `inherit`
+	    non ne riceve una propria: eredita quella del processo che lo lancia,
+	    estensioni sui file comprese, così vede esattamente i file che
+	    l'utente ha scelto in Comprimio e nient'altro.
+
+	    Queste due chiavi devono restare sole: un eseguibile che eredita la
+	    sandbox e dichiara altri entitlement viene rifiutato all'avvio.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.inherit</key>
+	<true/>
+</dict>
+</plist>
