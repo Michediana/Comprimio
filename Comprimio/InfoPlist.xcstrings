@@ -1,0 +1,42 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSAppleMusicUsageDescription" : {
+      "comment" : "Purpose string shown when a folder added to Comprimio contains the Music library.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio liest nur Bilddateien in den Ordnern, die du hinzufügst. Wenn du einen Ordner hinzufügst, der deine Musikmediathek enthält (zum Beispiel deinen Benutzerordner), durchsucht es ihn nach Bildern wie Albumcovern, um sie zu komprimieren. Es wird nichts abgespielt, verändert oder irgendwohin gesendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio only reads image files inside the folders you add. When you add a folder that contains your Music library (for example your home folder), it looks through it for images such as album artwork to compress. Nothing is played, modified or sent anywhere."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio solo lee los archivos de imagen de las carpetas que añades. Si añades una carpeta que contiene tu biblioteca de Música (por ejemplo, tu carpeta de inicio), la recorre en busca de imágenes, como las portadas de álbumes, para comprimirlas. No se reproduce, modifica ni envía nada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio lit uniquement les fichiers image des dossiers que vous ajoutez. Si vous ajoutez un dossier qui contient votre bibliothèque Musique (par exemple votre dossier de départ), il le parcourt à la recherche d’images, comme les pochettes d’album, à compresser. Rien n’est lu, modifié ni envoyé."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio legge solo i file immagine nelle cartelle che aggiungi. Se aggiungi una cartella che contiene la libreria di Musica (per esempio la tua cartella Inizio), la scorre per cercare immagini da comprimere, come le copertine degli album. Nulla viene riprodotto, modificato o inviato altrove."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

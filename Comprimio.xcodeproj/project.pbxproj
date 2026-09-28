@@ -287,6 +287,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Comprimio;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Comprimio only reads image files inside the folders you add. When you add a folder that contains your Music library (for example your home folder), it looks through it for images such as album artwork to compress. Nothing is played, modified or sent anywhere.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -321,6 +322,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Comprimio;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Comprimio only reads image files inside the folders you add. When you add a folder that contains your Music library (for example your home folder), it looks through it for images such as album artwork to compress. Nothing is played, modified or sent anywhere.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
