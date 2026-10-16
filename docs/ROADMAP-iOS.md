@@ -1,6 +1,6 @@
 # Roadmap: Comprimio per iPad e iPhone
 
-Stato: **fase 1 completata nel simulatore**, manca la misura su iPhone reale · Branch di lavoro: `ios-port`
+Stato: **fasi 1 e 2 completate nel simulatore**, manca la misura su iPhone reale · Branch di lavoro: `ios-port`
 
 Obiettivo: portare Comprimio su iPadOS e iOS con le stesse opzioni di
 conversione del Mac, **lasciando l'app Mac com'è**.
@@ -45,9 +45,10 @@ tutto il processo. Le parti che cambiano:
 ```
 Comprimio/                 app Mac, invariata (alcuni file anche nel target iOS)
 ComprimioiOS/              app iOS/iPadOS: App, AppStore, Views
-Packages/MagickEngine/     LibraryEngine + test nel simulatore (solo iOS)
+Packages/MagickEngine/     LibraryEngine, ImageIOBridge + test nel simulatore (solo iOS)
 Scripts/build-imagemagick-ios.sh   cross-compila ImageMagick e le dipendenze
-Vendor/ImageMagick-iOS/    ImageMagick.xcframework (ios-arm64, ios-arm64-simulator)
+Vendor/ImageMagick-iOS/    ImageMagick.xcframework (ios-arm64, ios-arm64-simulator),
+                           Licenses/ con i testi e licenses.json
 ```
 
 | File esistente | Nel target iOS |
@@ -70,11 +71,29 @@ formati che ne dipendevano si usa ImageIO:
 | AVIF | libheif + libaom | libheif + libaom (BSD) |
 | Tutti gli altri | coder ImageMagick | coder ImageMagick |
 
-Il passaggio funziona così: ImageIO decodifica in un formato intermedio
-senza perdita (TIFF a 16 bit) e lo passa a ImageMagick. Per HEIC in uscita,
-ImageMagick produce il TIFF e ImageIO lo codifica. L'utente vede gli stessi
-formati del Mac. Il menu resta costruito da `writableFormats` più i formati
-ImageIO.
+Il passaggio (`MagickEngine/ImageIOBridge.swift`) funziona così: ImageIO
+decodifica in un TIFF non compresso e lo passa a ImageMagick. Il TIFF
+riproduce ciò che ImageMagick leggerebbe sul Mac:
+
+- **profondità dell'originale**: 8 bit se il file ne ha 8, 16 altrimenti,
+  come libheif (un TIFF sempre a 16 bit farebbe uscire a 16 bit anche i PNG);
+  i raw sempre a 16 bit in sRGB, come libraw configurato da ImageMagick;
+- **orientamento applicato ai pixel** e tag riportato a 1, come libheif e
+  libraw: senza, un HEIC ruotato uscirebbe storto quando `-auto-orient` è
+  spento. Le rotazioni sono esatte (multipli di 90°, nessun ricampionamento);
+- profilo colore, EXIF, GPS e IPTC dell'originale.
+
+Per HEIC in uscita, ImageMagick produce il TIFF e ImageIO lo codifica con
+`-quality` riportata a `kCGImageDestinationLossyCompressionQuality`. Il file
+non è lo stesso del Mac (x265 contro l'encoder di sistema), ma ha dimensioni,
+profilo e metadati uguali. L'utente vede gli stessi formati del Mac. Il menu
+resta costruito da `writableFormats` più HEIC e HEIF (`ImageIOBridge.canEncodeHEIC`).
+
+Senza codec HEVC ImageMagick elenca comunque HEIC e HEIF in sola lettura, e
+il coder DNG elenca i raw delle fotocamere: entrambi fallirebbero (il primo
+senza decoder, il secondo cercando un programma esterno). Il passaggio da
+ImageIO va quindi deciso prima, con `ImageIOBridge.decodesInput(_:)`, non
+chiedendo a ImageMagick.
 
 ## Memoria
 
@@ -139,13 +158,21 @@ La fase più rischiosa: se va bene, il resto è lavoro prevedibile.
 crash, con avanzamento e annullamento funzionanti.
 
 ### Fase 2 — Dipendenze complete
-- [ ] libtiff, lcms2, openjpeg, libjxl (+ highway, brotli), libaom + libheif
-      (solo AVIF), freetype, OpenEXR, libdeflate, libzstd, liblzma
-- [ ] Verifica automatica nello script: ogni formato atteso compare in
-      `-list format` come scrivibile
-- [ ] Passaggio ImageIO per HEIC (lettura e scrittura) e RAW (lettura)
-- [ ] Elenco delle licenze delle dipendenze, da mostrare nell'app
-- [ ] `Vendor/README.md`: sezione su come aggiornare l'albero iOS
+- [x] libtiff, lcms2, openjpeg, libjxl (+ highway, brotli), libaom + libheif
+      (solo AVIF), freetype, OpenEXR (+ Imath, OpenJPH), libdeflate, zstd,
+      xz, e libxml2 dell'SDK (come sul Mac: MSL, SVG interno, URL). Versioni
+      lette dalle librerie dell'albero Mac, non dalle formule Homebrew di oggi
+- [x] Verifica automatica nello script: `-list format` eseguito nel
+      simulatore e confrontato con quello dell'albero Mac, modo compreso.
+      Differenze ammesse in `expected_format_differences`, ognuna motivata:
+      276 formati, 192 scrivibili
+- [x] Passaggio ImageIO per HEIC (lettura e scrittura) e RAW (lettura), con
+      test sugli otto orientamenti EXIF
+- [x] Elenco delle licenze delle dipendenze, da mostrare nell'app
+      (`Vendor/ImageMagick-iOS/Licenses/licenses.json`)
+- [x] `Vendor/README.md`: sezione su come aggiornare l'albero iOS
+- [ ] Decodifica raw provata su scatti veri (`MAGICK_RAW_FIXTURE`), e HEIC
+      su un dispositivo: il simulatore può non avere l'encoder
 
 **Fatto quando:** l'elenco dei formati iOS coincide con quello del Mac.
 
@@ -155,6 +182,10 @@ crash, con avanzamento e annullamento funzionanti.
 - [ ] Verifica: la build Mac è identica (stessi sorgenti compilati, app
       provata a mano su un batch di riferimento)
 - [ ] `AppStore` iOS sopra `LibraryEngine`, con `CGImage` al posto di `NSImage`
+- [ ] Collegare `ImageIOBridge`: HEIC/raw in ingresso decodificati prima di
+      `arguments(…)`, HEIC/HEIF in uscita scritti come TIFF e poi codificati;
+      i file intermedi nella cartella temporanea, cancellati anche in caso
+      di errore o annullamento
 
 ### Fase 4 — App iPad
 - [ ] `NavigationSplitView`: lista nella sidebar, impostazioni nell'inspector,
@@ -204,7 +235,8 @@ crash, con avanzamento e annullamento funzionanti.
 |---|---|---|
 | Quantum Q8 o Q16 senza HDRI | fine fase 1 | **Q16 senza HDRI** |
 | Limiti delle risorse e numero di corsie | fase 6 | 256 MB per corsia regge nel simulatore; da tarare su iPhone |
-| Formato intermedio per il passaggio ImageIO | fase 2 | proposta: TIFF a 16 bit |
+| Formato intermedio per il passaggio ImageIO | fase 2 | **TIFF non compresso alla profondità dell'originale** (8 o 16 bit) |
+| libheif (LGPL-3.0) linkata staticamente per l'AVIF | prima della fase 7 | aperta: tenerla rispettando la LGPL (ricollegamento possibile), o togliere l'AVIF su iOS |
 | Condividere i file o copiarli nel target iOS | fase 3 | proposta: condividere |
 
 ## Rischi
@@ -215,5 +247,6 @@ crash, con avanzamento e annullamento funzionanti.
 | Memoria insufficiente su foto grandi | Quantum ridotto, limiti delle risorse, cache su disco, meno corsie |
 | Coder che chiama `exit()` o lascia stato globale sporco | Gestori di errore personalizzati (gli errori fatali escono comunque); test di robustezza su file corrotti |
 | Misure falsate dallo scheduler | Le misure girano a QoS `.userInitiated`: con la QoS del test i tempi sono 20–25 volte più lunghi |
-| Formati che spariscono senza errore (come la trappola 2 del Mac) | Verifica automatica dei formati nello script di build |
+| Formati che spariscono senza errore (come la trappola 2 del Mac) | Verifica dei delegate e confronto di `-list format` con il Mac nello script di build |
+| Formati elencati ma inutilizzabili (HEIC senza HEVC, raw senza libraw) | Il passaggio ImageIO si decide dall'estensione, non da ImageMagick |
 | Le modifiche condivise cambiano il Mac | Solo blocchi `#if os(macOS)`; build Mac verificata alla fine della fase 3 |

@@ -25,7 +25,10 @@ let package = Package(
             linkerSettings: [
                 .linkedLibrary("z"),
                 .linkedLibrary("bz2"),
-                .linkedLibrary("iconv")
+                .linkedLibrary("iconv"),
+                .linkedLibrary("xml2"),
+                // libjxl, OpenEXR e OpenJPH sono in C++.
+                .linkedLibrary("c++")
             ]
         ),
         .testTarget(

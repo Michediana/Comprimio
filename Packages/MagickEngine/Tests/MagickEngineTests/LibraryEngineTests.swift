@@ -48,10 +48,27 @@ final class LibraryEngineTests: XCTestCase {
 
     func testWritableFormats() {
         let formats = LibraryEngine.writableFormats
-        for format in ["JPEG", "PNG", "WEBP", "GIF", "BMP", "PDF", "JNG", "PPM", "QOI"] {
+        for format in ["JPEG", "PNG", "WEBP", "GIF", "BMP", "PDF", "JNG", "PPM", "QOI",
+                       "TIFF", "TIFF64", "PTIF", "JXL", "JP2", "EXR", "AVIF", "PSD"] {
             XCTAssertTrue(formats.contains(format), "\(format) non è scrivibile")
         }
+        // HEIC e HEIF li scrive ImageIO: senza codec HEVC ImageMagick non può.
+        XCTAssertFalse(formats.contains("HEIC"))
         print("Formati scrivibili: \(formats.count)")
+    }
+
+    /// I formati che dipendono dalle librerie della fase 2: si scrivono e si
+    /// rileggono, così un delegate presente ma rotto non passa inosservato.
+    func testRoundTripsThroughDelegateFormats() throws {
+        let input = try makeJPEG(width: 320, height: 200)
+        for ext in ["tiff", "jxl", "jp2", "exr", "avif"] {
+            let output = directory.appendingPathComponent("out.\(ext)")
+            let back = directory.appendingPathComponent("back-\(ext).png")
+            try LibraryEngine.run(arguments: [input.path, "-quality", "80", output.path])
+            try LibraryEngine.run(arguments: [output.path, back.path])
+            let size = try XCTUnwrap(imageSize(back), ext)
+            XCTAssertEqual(size, CGSize(width: 320, height: 200), ext)
+        }
     }
 
     // MARK: - Conversione

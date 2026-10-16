@@ -1,0 +1,21 @@
+[
+  {"name": "imagemagick", "version": "7.1.2-30", "license": "ImageMagick", "file": "imagemagick.txt"},
+  {"name": "zstd", "version": "1.5.7", "license": "BSD-3-Clause", "file": "zstd.txt"},
+  {"name": "xz", "version": "5.8.3", "license": "0BSD", "file": "xz.txt"},
+  {"name": "libdeflate", "version": "1.26", "license": "MIT", "file": "libdeflate.txt"},
+  {"name": "libjpeg-turbo", "version": "3.2.0", "license": "IJG AND BSD-3-Clause AND Zlib", "file": "libjpeg-turbo.txt"},
+  {"name": "libpng", "version": "1.6.59", "license": "libpng-2.0", "file": "libpng.txt"},
+  {"name": "libwebp", "version": "1.6.0", "license": "BSD-3-Clause", "file": "libwebp.txt"},
+  {"name": "libtiff", "version": "4.7.2", "license": "libtiff", "file": "libtiff.txt"},
+  {"name": "lcms2", "version": "2.19", "license": "MIT", "file": "lcms2.txt"},
+  {"name": "freetype", "version": "2.14.3", "license": "FTL", "file": "freetype.txt"},
+  {"name": "openjpeg", "version": "2.5.4", "license": "BSD-2-Clause", "file": "openjpeg.txt"},
+  {"name": "highway", "version": "1.4.0", "license": "Apache-2.0 OR BSD-3-Clause", "file": "highway.txt"},
+  {"name": "brotli", "version": "1.2.0", "license": "MIT", "file": "brotli.txt"},
+  {"name": "libjxl", "version": "0.12.0", "license": "BSD-3-Clause", "file": "libjxl.txt"},
+  {"name": "libaom", "version": "3.14.1", "license": "BSD-2-Clause", "file": "libaom.txt"},
+  {"name": "libheif", "version": "1.23.1", "license": "LGPL-3.0-or-later", "file": "libheif.txt"},
+  {"name": "imath", "version": "3.2.3", "license": "BSD-3-Clause", "file": "imath.txt"},
+  {"name": "openjph", "version": "0.31.0", "license": "BSD-2-Clause", "file": "openjph.txt"},
+  {"name": "openexr", "version": "3.4.15", "license": "BSD-3-Clause", "file": "openexr.txt"}
+]

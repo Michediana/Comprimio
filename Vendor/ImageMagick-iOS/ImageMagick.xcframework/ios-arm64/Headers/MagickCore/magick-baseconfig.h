@@ -93,7 +93,9 @@
 /* #undef FPX_DELEGATE */
 
 /* Define if you have FREETYPE library */
-/* #undef FREETYPE_DELEGATE */
+#ifndef MAGICKCORE_FREETYPE_DELEGATE
+#define MAGICKCORE_FREETYPE_DELEGATE 1
+#endif
 
 /* Define if you have Ghostscript library or framework */
 /* #undef GS_DELEGATE */
@@ -424,7 +426,9 @@
 /* #undef HAVE_JPEG_SIMPLE_LOSSLESS */
 
 /* Define if you have the <lcms2.h> header file. */
-/* #undef HAVE_LCMS2_H */
+#ifndef MAGICKCORE_HAVE_LCMS2_H
+#define MAGICKCORE_HAVE_LCMS2_H 1
+#endif
 
 /* Define if you have the <lcms2/lcms2.h> header file. */
 /* #undef HAVE_LCMS2_LCMS2_H */
@@ -1093,7 +1097,9 @@
 #endif
 
 /* Define if you have libheif library */
-/* #undef HEIC_DELEGATE */
+#ifndef MAGICKCORE_HEIC_DELEGATE
+#define MAGICKCORE_HEIC_DELEGATE 1
+#endif
 
 /* Directory where ImageMagick architecture headers live. */
 #ifndef MAGICKCORE_INCLUDEARCH_PATH
@@ -1117,13 +1123,19 @@
 #endif
 
 /* Define if you have jpeg-xl library */
-/* #undef JXL_DELEGATE */
+#ifndef MAGICKCORE_JXL_DELEGATE
+#define MAGICKCORE_JXL_DELEGATE 1
+#endif
 
 /* Define if you have LCMS library */
-/* #undef LCMS_DELEGATE */
+#ifndef MAGICKCORE_LCMS_DELEGATE
+#define MAGICKCORE_LCMS_DELEGATE 1
+#endif
 
 /* Define if you have OPENJP2 library */
-/* #undef LIBOPENJP2_DELEGATE */
+#ifndef MAGICKCORE_LIBOPENJP2_DELEGATE
+#define MAGICKCORE_LIBOPENJP2_DELEGATE 1
+#endif
 
 /* Directory where architecture-dependent files live. */
 #ifndef MAGICKCORE_LIBRARY_ABSOLUTE_PATH
@@ -1158,7 +1170,9 @@
 #endif
 
 /* Define if you have LZMA library */
-/* #undef LZMA_DELEGATE */
+#ifndef MAGICKCORE_LZMA_DELEGATE
+#define MAGICKCORE_LZMA_DELEGATE 1
+#endif
 
 /* Define to prepend to default font search path. */
 /* #undef MAGICK_FONT_PATH */
@@ -1196,7 +1210,9 @@
 /* #undef NDEBUG */
 
 /* Define if you have OPENEXR library */
-/* #undef OPENEXR_DELEGATE */
+#ifndef MAGICKCORE_OPENEXR_DELEGATE
+#define MAGICKCORE_OPENEXR_DELEGATE 1
+#endif
 
 /* Define to the address where bug reports for this package should be sent. */
 #ifndef MAGICKCORE_PACKAGE_BUGREPORT
@@ -1343,7 +1359,9 @@
 #endif
 
 /* Define if you have TIFF library */
-/* #undef TIFF_DELEGATE */
+#ifndef MAGICKCORE_TIFF_DELEGATE
+#define MAGICKCORE_TIFF_DELEGATE 1
+#endif
 
 /* Define to 1 if your <sys/time.h> declares 'struct tm'. */
 /* #undef TM_IN_SYS_TIME */
@@ -1483,7 +1501,9 @@
 /* #undef X11_DELEGATE */
 
 /* Define if you have XML library */
-/* #undef XML_DELEGATE */
+#ifndef MAGICKCORE_XML_DELEGATE
+#define MAGICKCORE_XML_DELEGATE 1
+#endif
 
 /* Define to 1 if the X Window System is missing or not being used. */
 #ifndef MAGICKCORE_X_DISPLAY_MISSING
@@ -1504,7 +1524,9 @@
 #endif
 
 /* Define if you have ZSTD library */
-/* #undef ZSTD_DELEGATE */
+#ifndef MAGICKCORE_ZSTD_DELEGATE
+#define MAGICKCORE_ZSTD_DELEGATE 1
+#endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 /* #undef _FILE_OFFSET_BITS */

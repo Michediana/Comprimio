@@ -123,25 +123,87 @@ all'albero Mac:
   22 byte su 844 KB. La Q8 dimezzerebbe ancora la memoria, ma perde i 16 bit
   e cambia i file (+1,7%); il limite delle risorse fa meglio senza questi
   difetti (221 MB con 256 MB di limite, stesso tempo);
-- **nessuna dipendenza GPL/LGPL**: x265, libde265, libraw, liblqr e glib
-  sono esclusi. HEIC e RAW su iOS passeranno da ImageIO.
+- **niente x265, libde265, libraw, liblqr, glib**: HEIC/HEIF e i raw delle
+  fotocamere passano da ImageIO (`MagickEngine/ImageIOBridge.swift`), che
+  li decodifica in un TIFF senza perdita prima di ImageMagick e codifica
+  l'HEIC dal TIFF che ImageMagick produce. `-liquid-rescale` non c'è, e
+  Comprimio non lo usa;
+- **niente fontconfig**: non esiste su iOS. FreeType c'è, i font vanno
+  indicati per percorso.
 
-Le versioni coincidono con quelle dell'albero Mac (ImageMagick 7.1.2-30,
-libpng 1.6.59, libjpeg-turbo 3.2.0, libwebp 1.6.0); zlib e bzip2 sono quelle
-dell'SDK. I dettagli sono in `imagemagick-ios.json`.
+### Dipendenze
 
-### Ricostruire
+Le stesse dell'albero Mac, alle stesse versioni, lette dalle librerie in
+`Vendor/ImageMagick/arm64` e non dalle formule Homebrew di oggi, che nel
+frattempo sono andate avanti:
+
+| Libreria | Versione | Serve a |
+|---|---|---|
+| ImageMagick | 7.1.2-30 | |
+| libjpeg-turbo | 3.2.0 | JPEG, JNG, compressione JPEG nei TIFF |
+| libpng | 1.6.59 (Mac: 1.6.58) | PNG e varianti, MNG, PNG nei font |
+| libwebp | 1.6.0 | WebP, compressione WebP nei TIFF |
+| libtiff | 4.7.2 | TIFF, BigTIFF, TIFF piramidale, fax G3/G4 |
+| lcms2 | 2.19 | gestione colore (`-profile`, `-intent`) |
+| FreeType | 2.14.3 | testo (filigrane, `label:`, `caption:`) |
+| OpenJPEG | 2.5.4 | JPEG 2000 |
+| libjxl + highway + brotli | 0.12.0, 1.4.0, 1.2.0 | JPEG XL |
+| libheif + libaom | 1.23.1, 3.14.1 | AVIF (solo AV1, niente HEVC) |
+| OpenEXR + Imath + OpenJPH + libdeflate | 3.4.15, 3.2.3, 0.31.0, 1.26 | OpenEXR |
+| zstd, xz | 1.5.7, 5.8.3 | compressione Zstandard e LZMA (TIFF, MIFF) |
+
+zlib, bzip2, iconv e libxml2 sono quelle dell'SDK iOS. Le licenze,
+con il testo completo di ciascuna, sono in
+`Vendor/ImageMagick-iOS/Licenses/` con un indice `licenses.json` da
+mostrare nell'app.
+
+**libheif è LGPL-3.0.** È l'unica dipendenza con licenza copyleft: linkata
+staticamente nell'app, la LGPL chiede che chi la riceve possa ricollegare
+l'app con una propria versione della libreria (per esempio fornendo, su
+richiesta, i file oggetto dell'app). Le alternative, se non la si vuole:
+togliere l'AVIF su iOS, o scriverlo con ImageIO quando lo saprà fare. Vedi
+le decisioni aperte in `docs/ROADMAP-iOS.md`.
+
+### Aggiornare l'albero iOS
 
     brew install cmake ninja pkg-config
     Scripts/build-imagemagick-ios.sh
     git add Vendor/ImageMagick-iOS && git commit
 
 Lo script scarica i sorgenti, ne verifica lo SHA-256, compila gli slice
-`ios-arm64` e `ios-arm64-simulator` e sostituisce l'XCFramework. Si ferma se
-l'insieme dei delegate trovati da configure non è esattamente quello atteso:
-come sul Mac, un delegate mancante non dà errori, e il formato sparisce in
-silenzio. `QUANTUM=8` e `HDRI=yes` producono le varianti, `OUT=` le scrive
-altrove per confrontarle.
+`ios-arm64` e `ios-arm64-simulator` e sostituisce l'XCFramework. Ci vuole
+qualche minuto per slice: libaom, libjxl e OpenEXR sono le parti lunghe.
+`QUANTUM=8` e `HDRI=yes` producono le varianti, `OUT=` le scrive altrove per
+confrontarle.
+
+Per cambiare una versione: aggiornare la riga in `SOURCES` (versione, URL,
+SHA-256 dell'archivio, licenza) e rilanciare. Le versioni vanno tenute
+uguali a quelle dell'albero Mac, per cui dopo aggiornato `Vendor/ImageMagick`
+conviene leggere quelle nuove dalle librerie stesse, per esempio:
+
+    otool -L Vendor/ImageMagick/arm64/lib/libheif.*.dylib
+
+o, dove il numero nel nome non basta (lcms2, FreeType, OpenEXR), con la
+funzione di versione della libreria (`cmsGetEncodedCMMversion`,
+`FT_Library_Version`, `exr_get_library_version`) chiamata da Python con
+`ctypes`.
+
+Lo script si ferma in due casi, entrambi pensati per i formati che
+spariscono in silenzio, come la trappola del Mac:
+
+1. **delegate**: l'insieme trovato da configure deve essere esattamente
+   quello atteso. Un delegate mancante non dà errori, e il formato non c'è;
+2. **formati**: prima di sostituire l'XCFramework, compila un piccolo
+   programma con lo slice del simulatore, lo esegue nel simulatore
+   (`simctl spawn`) e confronta il suo `-list format` con quello
+   dell'albero Mac, modo di lettura e scrittura compreso. Le differenze
+   ammesse sono in `expected_format_differences`, ciascuna con il motivo;
+   qualsiasi altra ferma la build. Il simulatore usato è il primo iPhone
+   disponibile, o quello in `SIMULATOR=<UDID>`.
+
+Se la verifica fallisce l'XCFramework versionato resta quello di prima.
+`SKIP_FORMAT_CHECK=1` la salta, ma solo per prove locali: non va
+committato un albero che non l'ha passata.
 
 ### Verificare
 
@@ -154,4 +216,5 @@ Per misurare memoria e tempi su una foto vera si passa il file con
 `TEST_RUNNER_MAGICK_MEMORY_LIMIT_MB=256`. La misura gira con QoS
 `.userInitiated`, come le corsie dell'app: con la QoS predefinita del test
 i tempi risultano 20–25 volte più lunghi, perché lo scheduler lascia il
-processo sui core a efficienza.
+processo sui core a efficienza. Uno scatto raw per provare la decodifica
+con ImageIO si passa con `TEST_RUNNER_MAGICK_RAW_FIXTURE`.

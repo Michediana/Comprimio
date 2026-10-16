@@ -3,5 +3,7 @@ module ImageMagick [system] {
     link "z"
     link "bz2"
     link "iconv"
+    link "xml2"
+    link "c++"
     export *
 }
