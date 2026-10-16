@@ -1,6 +1,6 @@
 # Roadmap: Comprimio per iPad e iPhone
 
-Stato: **fasi 1 e 2 completate nel simulatore**, manca la misura su iPhone reale · Branch di lavoro: `ios-port`
+Stato: **fasi 1, 2 e 3 completate nel simulatore**, manca la misura su iPhone reale · Branch di lavoro: `ios-port`
 
 Obiettivo: portare Comprimio su iPadOS e iOS con le stesse opzioni di
 conversione del Mac, **lasciando l'app Mac com'è**.
@@ -44,7 +44,7 @@ tutto il processo. Le parti che cambiano:
 
 ```
 Comprimio/                 app Mac, invariata (alcuni file anche nel target iOS)
-ComprimioiOS/              app iOS/iPadOS: App, AppStore, Views
+ComprimioiOS/              app iOS/iPadOS: App, AppStore (stato, motore, budget), Views
 Packages/MagickEngine/     LibraryEngine, ImageIOBridge + test nel simulatore (solo iOS)
 Scripts/build-imagemagick-ios.sh   cross-compila ImageMagick e le dipendenze
 Vendor/ImageMagick-iOS/    ImageMagick.xcframework (ios-arm64, ios-arm64-simulator),
@@ -57,6 +57,14 @@ Vendor/ImageMagick-iOS/    ImageMagick.xcframework (ios-arm64, ios-arm64-simulat
 | `Services/ImageMagick.swift` | Condiviso, con `#if os(macOS)` attorno a `Process`, `MagickLocation`, `runsOnThisMac` |
 | `Models/WatermarkSettings` | Condiviso, con `#if` su `NSFontManager` (iOS: `UIFont.familyNames`) |
 | `Services/AppStore`, `FolderAccess`, `Views/*`, `ComprimioApp` | Riscritti in `ComprimioiOS/` |
+| `Localizable.xcstrings`, `Assets.xcassets`, `ComprimioIcon.icon` | Condivisi |
+| `InfoPlist.xcstrings`, entitlement, `Support/DebugSnapshot`, `Support/LiquidGlass` | Solo Mac |
+
+Nel progetto la cartella `Comprimio/` è un gruppo sincronizzato di entrambi i
+target; i file solo Mac sono elencati uno per uno nell'eccezione del target
+iOS (Xcode non applica l'esclusione di una cartella intera). **Un file nuovo
+in `Comprimio/Views/` va aggiunto a quell'elenco**, altrimenti entra anche
+nella build iOS.
 
 ## Formati e licenze
 
@@ -83,8 +91,22 @@ riproduce ciò che ImageMagick leggerebbe sul Mac:
   spento. Le rotazioni sono esatte (multipli di 90°, nessun ricampionamento);
 - profilo colore, EXIF, GPS e IPTC dell'originale.
 
-Per HEIC in uscita, ImageMagick produce il TIFF e ImageIO lo codifica con
-`-quality` riportata a `kCGImageDestinationLossyCompressionQuality`. Il file
+Per HEIC in uscita, ImageMagick produce il TIFF (con `-compress None`, che
+altrimenti erediterebbe la compressione dell'originale) e ImageIO lo codifica
+con `-quality` riportata a `kCGImageDestinationLossyCompressionQuality`.
+
+Il TIFF di ImageMagick non porta il profilo EXIF, e ImageMagick, leggendo un
+TIFF, trasforma l'EXIF in proprietà che poi non riscrive. Con «Mantieni i
+metadati» servono quindi due ponti, entrambi un JPEG 1×1:
+
+- **in uscita**, lo stesso comando scrive anche
+  `( +clone -sample 1x1! -write JPEG:… +delete )`: i suoi metadati (EXIF,
+  GPS, IPTC, XMP, orientamento già aggiornato) vanno nell'HEIC. L'encoder
+  ignora l'orientamento dei metadati, che passa fra le proprietà: con
+  `-auto-orient` spento l'HEIC resta 1200×800 con tag 6, come sul Mac;
+- **in ingresso** (HEIC/raw), ImageIO scrive l'EXIF dell'originale in un
+  JPEG 1×1 in grigio «device» (nessun ICC, che `-profile` applicherebbe
+  convertendo i colori) e ImageMagick lo riceve con `-profile JPEG:…`. Il file
 non è lo stesso del Mac (x265 contro l'encoder di sistema), ma ha dimensioni,
 profilo e metadati uguali. L'utente vede gli stessi formati del Mac. Il menu
 resta costruito da `writableFormats` più HEIC e HEIF (`ImageIOBridge.canEncodeHEIC`).
@@ -177,15 +199,35 @@ crash, con avanzamento e annullamento funzionanti.
 **Fatto quando:** l'elenco dei formati iOS coincide con quello del Mac.
 
 ### Fase 3 — Codice condiviso e target iOS
-- [ ] Target `Comprimio iOS` nel progetto, stesso bundle ID
-- [ ] `#if os(macOS)` in `ImageMagick.swift` e `WatermarkSettings.swift`
-- [ ] Verifica: la build Mac è identica (stessi sorgenti compilati, app
-      provata a mano su un batch di riferimento)
-- [ ] `AppStore` iOS sopra `LibraryEngine`, con `CGImage` al posto di `NSImage`
-- [ ] Collegare `ImageIOBridge`: HEIC/raw in ingresso decodificati prima di
-      `arguments(…)`, HEIC/HEIF in uscita scritti come TIFF e poi codificati;
-      i file intermedi nella cartella temporanea, cancellati anche in caso
-      di errore o annullamento
+- [x] Target `Comprimio iOS` nel progetto, stesso bundle ID, iOS 17,
+      iPhone e iPad, senza «Designed for iPad» sul Mac; MagickEngine come
+      pacchetto locale; schema condiviso. Simulatore solo arm64 (come
+      l'XCFramework)
+- [x] `#if os(macOS)` in `ImageMagick.swift` e `WatermarkSettings.swift`:
+      solo righe aggiunte. Su iOS `MagickError`, `MagickProgress` e
+      `MagickCancellation` arrivano da MagickEngine; la tabella delle fasi
+      resta condivisa (`phaseLabel(forTag:)`)
+- [x] Verifica della build Mac, Release, prima e dopo: stessa lista di
+      sorgenti, stesso contenuto del bundle, stessi simboli, sezioni
+      `__text`, `__cstring`, `__const` e metadati Swift identiche byte per
+      byte in arm64 e x86_64 (cambiano solo UUID/firma e i nomi casuali
+      delle rendition in `Assets.car`)
+- [ ] Prova a mano dell'app Mac su un batch di riferimento
+- [x] `AppStore` iOS sopra `LibraryEngine`, con `CGImage` al posto di
+      `NSImage`; corsie e limite di memoria in `ConversionBudget` (valori di
+      partenza, da tarare in fase 6). Uscita provvisoria in
+      `Documenti/<sottocartella>`, visibile in File; schermata provvisoria
+      per provare il motore
+- [x] Collegare `ImageIOBridge`: HEIC/raw in ingresso (anche come logo della
+      filigrana) decodificati dopo `arguments(…)`, che deve vedere
+      l'estensione originale; HEIC/HEIF in uscita scritti come TIFF e poi
+      codificati; EXIF conservato nei due sensi (vedi «Formati e licenze»);
+      file intermedi in una cartella per conversione, cancellata anche con
+      errore o annullamento. `identify` diventa `-ping … info:file`
+- [x] Provato nel simulatore: JPEG→WebP/HEIC/PCX, HEIC→HEIC/PNG/WebP/JPEG,
+      qualità, `-strip`, `-auto-orient` spento, logo HEIC, testo, anteprima
+      via PNG, annullamento prima e durante, nessuna cartella rimasta; due
+      test nuovi nel pacchetto (18 in tutto)
 
 ### Fase 4 — App iPad
 - [ ] `NavigationSplitView`: lista nella sidebar, impostazioni nell'inspector,
@@ -237,7 +279,8 @@ crash, con avanzamento e annullamento funzionanti.
 | Limiti delle risorse e numero di corsie | fase 6 | 256 MB per corsia regge nel simulatore; da tarare su iPhone |
 | Formato intermedio per il passaggio ImageIO | fase 2 | **TIFF non compresso alla profondità dell'originale** (8 o 16 bit) |
 | libheif (LGPL-3.0) linkata staticamente per l'AVIF | prima della fase 7 | aperta: tenerla rispettando la LGPL (ricollegamento possibile), o togliere l'AVIF su iOS |
-| Condividere i file o copiarli nel target iOS | fase 3 | proposta: condividere |
+| Condividere i file o copiarli nel target iOS | fase 3 | **condividere** (gruppo sincronizzato con eccezioni per il target iOS) |
+| Dove scrivere i file convertiti su iOS | fase 4 | provvisorio: Documenti dell'app |
 
 ## Rischi
 

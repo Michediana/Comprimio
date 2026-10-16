@@ -5,7 +5,11 @@
 //  Filigrana: un logo o un testo sovrapposto a tutte le immagini del batch.
 //
 
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import CoreText
 import Foundation
 
@@ -173,9 +177,14 @@ struct WatermarkSettings: Codable, Equatable {
 
     /// Famiglie installate, calcolate una volta: interrogare NSFontManager a
     /// ogni redraw del menu costa parecchio.
+    #if os(macOS)
     static let availableFontFamilies: [String] = NSFontManager.shared
         .availableFontFamilies
         .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    #else
+    static let availableFontFamilies: [String] = UIFont.familyNames
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    #endif
 
     // MARK: - Testo per `label:`
 

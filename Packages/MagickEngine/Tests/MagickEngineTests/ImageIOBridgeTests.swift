@@ -95,6 +95,29 @@ final class ImageIOBridgeTests: XCTestCase {
         XCTAssertEqual(result.height, 60)
     }
 
+    /// Il TIFF porta l'EXIF come proprietà, che ImageMagick non riscrive:
+    /// il JPEG 1×1 lo riattacca come profilo, senza toccare i colori.
+    func testEXIFCarrierRestoresTheProfile() throws {
+        let input = try makeQuadrants(orientation: .right)
+        let tiff = directory.appendingPathComponent("exif.tiff")
+        let carrier = directory.appendingPathComponent("carrier.jpg")
+        let bare = directory.appendingPathComponent("bare.png")
+        let tagged = directory.appendingPathComponent("tagged.png")
+
+        try ImageIOBridge.decode(input, toTIFF: tiff)
+        XCTAssertTrue(ImageIOBridge.writeEXIFCarrier(from: input, to: carrier))
+        try LibraryEngine.run(arguments: [tiff.path, bare.path])
+        try LibraryEngine.run(arguments: [tiff.path, "-profile", "JPEG:" + carrier.path, tagged.path])
+
+        XCTAssertNil(try exif(bare))
+        XCTAssertNotNil(try exif(tagged))
+        XCTAssertNotEqual(try orientationTag(tagged), 6)
+        let plain = try image(bare), restored = try image(tagged)
+        for (x, y) in quadrantCenters(width: plain.width, height: plain.height) {
+            XCTAssertEqual(try pixel(restored, x, y), try pixel(plain, x, y))
+        }
+    }
+
     func testDecodeRAWFixture() throws {
         guard let path = ProcessInfo.processInfo.environment["MAGICK_RAW_FIXTURE"] else {
             throw XCTSkip("Nessuno scatto raw: imposta MAGICK_RAW_FIXTURE")
@@ -144,6 +167,30 @@ final class ImageIOBridgeTests: XCTestCase {
         try ImageIOBridge.encodeHEIC(fromTIFF: input, to: high, quality: 95)
 
         XCTAssertLessThan(try fileSize(low), try fileSize(high))
+    }
+
+    /// Con `-auto-orient` spento i pixel restano com'erano e l'HEIC deve
+    /// tenere il tag, come quello scritto da ImageMagick sul Mac; l'EXIF
+    /// arriva dalla copia 1×1 scritta nello stesso comando.
+    func testHEICTakesMetadataFromSidecar() throws {
+        guard ImageIOBridge.canEncodeHEIC else {
+            throw XCTSkip("ImageIO non ha l'encoder HEIC su questo sistema")
+        }
+        let input = try makeQuadrants(orientation: .right)
+        let tiff = directory.appendingPathComponent("unrotated.tiff")
+        let sidecar = directory.appendingPathComponent("sidecar.jpg")
+        let heic = directory.appendingPathComponent("tagged.heic")
+
+        try LibraryEngine.run(arguments: [
+            input.path,
+            "(", "+clone", "-sample", "1x1!", "-write", "JPEG:" + sidecar.path, "+delete", ")",
+            "-compress", "None", "TIFF:" + tiff.path
+        ])
+        try ImageIOBridge.encodeHEIC(fromTIFF: tiff, to: heic, quality: 80, metadataFrom: sidecar)
+
+        XCTAssertEqual(try image(heic).width, 60)
+        XCTAssertEqual(try orientationTag(heic), 6)
+        XCTAssertNotNil(try exif(heic))
     }
 
     // MARK: - Supporto
@@ -214,6 +261,12 @@ final class ImageIOBridgeTests: XCTestCase {
         let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
         let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
         return properties?[kCGImagePropertyOrientation] as? Int
+    }
+
+    private func exif(_ url: URL) throws -> [CFString: Any]? {
+        let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        return properties?[kCGImagePropertyExifDictionary] as? [CFString: Any]
     }
 
     private func fileSize(_ url: URL) throws -> Int {

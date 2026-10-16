@@ -76,6 +76,42 @@ public enum ImageIOBridge {
         }
     }
 
+    /// Scrive in `destination` un JPEG 1×1 con l'EXIF e il GPS di `source`,
+    /// per dare a ImageMagick (con `-profile`) il profilo EXIF che il TIFF
+    /// non gli porta: il suo lettore TIFF trasforma l'EXIF in proprietà, e
+    /// senza profilo non lo riscrive. `false` se l'originale non ne ha.
+    ///
+    /// L'orientamento è 1, come nel TIFF: i pixel sono già ruotati. Lo spazio
+    /// colore è il grigio «device», per cui ImageIO non incorpora un profilo
+    /// ICC: `-profile` lo applicherebbe, convertendo i colori.
+    public static func writeEXIFCarrier(from source: URL, to destination: URL) -> Bool {
+        guard let imageSource = CGImageSourceCreateWithURL(source as CFURL, nil),
+              let metadata = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any]
+        else { return false }
+        var exif = metadata[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
+        let gps = metadata[kCGImagePropertyGPSDictionary]
+        guard !exif.isEmpty || gps != nil else { return false }
+        // Le dimensioni dell'originale, non quelle del JPEG 1×1.
+        if let width = metadata[kCGImagePropertyPixelWidth], let height = metadata[kCGImagePropertyPixelHeight] {
+            exif[kCGImagePropertyExifPixelXDimension] = width
+            exif[kCGImagePropertyExifPixelYDimension] = height
+        }
+
+        guard let context = CGContext(
+            data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ), let pixel = context.makeImage(),
+           let output = CGImageDestinationCreateWithURL(
+               destination as CFURL, UTType.jpeg.identifier as CFString, 1, nil)
+        else { return false }
+
+        var properties: [CFString: Any] = [kCGImagePropertyOrientation: 1]
+        properties[kCGImagePropertyExifDictionary] = exif
+        if let gps { properties[kCGImagePropertyGPSDictionary] = gps }
+        CGImageDestinationAddImage(output, pixel, properties as CFDictionary)
+        return CGImageDestinationFinalize(output)
+    }
+
     /// I raw passano da Core Image, che applica il bilanciamento del bianco
     /// dello scatto e l'orientamento, come libraw con le impostazioni di
     /// ImageMagick.
@@ -187,7 +223,18 @@ public enum ImageIOBridge {
     /// `-strip` sono già stati applicati da ImageMagick. Il risultato non è
     /// lo stesso file del Mac (x265 contro l'encoder hardware), ma ha le
     /// stesse dimensioni, lo stesso profilo e gli stessi metadati.
-    public static func encodeHEIC(fromTIFF source: URL, to destination: URL, quality: Int?) throws {
+    ///
+    /// Il TIFF di ImageMagick però non porta il profilo EXIF. Per averlo,
+    /// `metadataFrom` indica un file scritto da ImageMagick nello stesso
+    /// comando (un JPEG 1×1 della stessa immagine): i suoi metadati, EXIF,
+    /// GPS, IPTC e XMP, sostituiscono quelli del TIFF, come se ImageMagick
+    /// avesse scritto l'HEIC da sé.
+    public static func encodeHEIC(
+        fromTIFF source: URL,
+        to destination: URL,
+        quality: Int?,
+        metadataFrom metadataSource: URL? = nil
+    ) throws {
         guard canEncodeHEIC else {
             throw MagickError(message: String(localized: "This device cannot encode HEIC images."))
         }
@@ -196,21 +243,37 @@ public enum ImageIOBridge {
                   let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
                 throw MagickError(message: String(localized: "The image could not be read."))
             }
-            let metadata = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any] ?? [:]
             guard let output = CGImageDestinationCreateWithURL(
                 destination as CFURL, UTType.heic.identifier as CFString, 1, nil) else {
                 throw MagickError(message: String(localized: "The image could not be saved."))
             }
             var properties: [CFString: Any] = [:]
-            for key in [kCGImagePropertyExifDictionary, kCGImagePropertyGPSDictionary,
-                        kCGImagePropertyIPTCDictionary, kCGImagePropertyOrientation,
-                        kCGImagePropertyDPIWidth, kCGImagePropertyDPIHeight] {
-                if let value = metadata[key] { properties[key] = value }
-            }
             if let quality {
                 properties[kCGImageDestinationLossyCompressionQuality] = Double(min(max(quality, 1), 100)) / 100
             }
-            CGImageDestinationAddImage(output, image, properties as CFDictionary)
+
+            if let metadataSource,
+               let sidecar = CGImageSourceCreateWithURL(metadataSource as CFURL, nil),
+               let metadata = CGImageSourceCopyMetadataAtIndex(sidecar, 0, nil) {
+                // L'encoder HEIC ignora l'orientamento scritto nei metadati e
+                // lo vuole fra le proprietà. Conta quando `-auto-orient` è
+                // spento: i pixel non sono ruotati e il tag deve restare.
+                let sidecarProperties = CGImageSourceCopyPropertiesAtIndex(sidecar, 0, nil) as? [CFString: Any]
+                if let orientation = sidecarProperties?[kCGImagePropertyOrientation] {
+                    properties[kCGImagePropertyOrientation] = orientation
+                }
+                // `PixelXDimension` resta quello del profilo, come sul Mac:
+                // ImageMagick non lo aggiorna nemmeno quando ridimensiona.
+                CGImageDestinationAddImageAndMetadata(output, image, metadata, properties as CFDictionary)
+            } else {
+                let metadata = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any] ?? [:]
+                for key in [kCGImagePropertyExifDictionary, kCGImagePropertyGPSDictionary,
+                            kCGImagePropertyIPTCDictionary, kCGImagePropertyOrientation,
+                            kCGImagePropertyDPIWidth, kCGImagePropertyDPIHeight] {
+                    if let value = metadata[key] { properties[key] = value }
+                }
+                CGImageDestinationAddImage(output, image, properties as CFDictionary)
+            }
             guard CGImageDestinationFinalize(output) else {
                 throw MagickError(message: String(localized: "The image could not be saved."))
             }

@@ -7,6 +7,10 @@
 
 import Foundation
 
+// Su iOS `MagickError`, `MagickProgress` e `MagickCancellation` arrivano da
+// MagickEngine, che esegue ImageMagick dentro il processo: niente `Process`,
+// niente binario da trovare nel bundle.
+#if os(macOS)
 struct MagickError: LocalizedError, Sendable {
     let message: String
     var errorDescription: String? { message }
@@ -93,6 +97,7 @@ private struct BundleManifest: Decodable {
     let filterModulePath: String?
     let configurePaths: [String]
 }
+#endif
 
 /// Qualità richiesta per l'anteprima.
 enum PreviewQuality: Equatable, Sendable {
@@ -110,6 +115,7 @@ enum PreviewQuality: Equatable, Sendable {
 
 enum ImageMagick {
 
+    #if os(macOS)
     // MARK: - Discovery
 
     /// L'unico ImageMagick che l'app usa è quello incluso nel bundle. Una
@@ -225,6 +231,7 @@ enum ImageMagick {
         let writable = parseWritableFormats(formatsOut?.standardOutput ?? "")
         return MagickInstall(location: location, version: version, writableFormats: writable)
     }
+    #endif
 
     static func parseWritableFormats(_ output: String) -> Set<String> {
         var result: Set<String> = []
@@ -541,6 +548,7 @@ enum ImageMagick {
         "extent": String(localized: "cropping")
     ]
 
+    #if os(macOS)
     /// Interpreta una riga di `-monitor`, del tipo
     /// `resize image[foto.jpg]: 1200 of 3000, 40% complete`.
     ///
@@ -569,7 +577,17 @@ enum ImageMagick {
             fraction: min(1, (offset + 1) / extent)
         )
     }
+    #else
+    /// Etichetta della fase per il tag che ImageMagick passa al callback di
+    /// avanzamento ("Resize/Image"): è lo stesso che `-monitor` stampa sul
+    /// Mac, quindi vale la stessa tabella.
+    static func phaseLabel(forTag tag: String) -> String {
+        let key = tag.split(whereSeparator: { $0 == " " || $0 == "/" }).first?.lowercased() ?? ""
+        return phaseLabels[key] ?? String(localized: "processing")
+    }
+    #endif
 
+    #if os(macOS)
     // MARK: - Esecuzione
 
     struct RunResult: Sendable {
@@ -736,8 +754,10 @@ enum ImageMagick {
         }
         return destination
     }
+    #endif
 }
 
+#if os(macOS)
 /// Scatola per passare dei byte tra il thread che legge lo stdout e chi aspetta.
 private final class DataBox: @unchecked Sendable {
     private let lock = NSLock()
@@ -754,3 +774,4 @@ private extension String {
         self = String(data: data, encoding: .utf8) ?? ""
     }
 }
+#endif

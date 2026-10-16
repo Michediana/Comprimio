@@ -14,6 +14,10 @@ import ImageMagick
 public struct MagickError: LocalizedError, Sendable {
     public let message: String
     public var errorDescription: String? { message }
+
+    public init(message: String) {
+        self.message = message
+    }
 }
 
 /// Avanzamento riportato da ImageMagick.
