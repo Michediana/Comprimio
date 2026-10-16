@@ -1,6 +1,6 @@
 # Roadmap: Comprimio per iPad e iPhone
 
-Stato: **da iniziare** · Branch di lavoro: `ios-port`
+Stato: **fase 1 completata nel simulatore**, manca la misura su iPhone reale · Branch di lavoro: `ios-port`
 
 Obiettivo: portare Comprimio su iPadOS e iOS con le stesse opzioni di
 conversione del Mac, **lasciando l'app Mac com'è**.
@@ -25,22 +25,27 @@ può lanciare. Inoltre l'App Store iOS accetta solo framework, non dylib
 sciolte, e i moduli caricati con libltdl non sono un'opzione.
 
 Su iOS ImageMagick gira quindi **dentro il processo**, compilato come
-XCFramework statico con i coder inclusi (`--without-modules`), e viene
-invocato con `MagickCommandGenesis`, che accetta lo stesso `argv` del
-binario `magick`. Le parti che cambiano:
+XCFramework statico con i coder inclusi (`--without-modules`) e la
+configurazione inclusa (`--enable-zero-configuration`), e viene invocato con
+`MagickImageCommand`, che accetta lo stesso `argv` del binario `magick`.
+Non `MagickCommandGenesis`: il wrapper serve solo per `-bench`/`-duration` e
+chiama `setlocale(LC_ALL, "")`, che in un'app cambierebbe il locale C di
+tutto il processo. Le parti che cambiano:
 
 | Mac (sottoprocesso) | iOS (nel processo) |
 |---|---|
 | Avanzamento da `-monitor` su stderr | Callback `SetImageInfoProgressMonitor` → `MagickProgress` |
 | Annullamento con `Process.terminate()` | Il callback restituisce `MagickFalse` |
-| Crash di `magick` isolato | `SetFatalErrorHandler`/`SetErrorHandler` (il default chiama `exit()`) |
-| Configurazione con l'ambiente del processo | `setenv("MAGICK_CONFIGURE_PATH", …)` prima di `MagickWandGenesis()` |
+| Messaggi di errore da stderr | La CLI consuma le eccezioni con `CatchException`: `SetErrorHandler` le raccoglie, per thread |
+| Crash di `magick` isolato | Gli errori fatali (allocazioni fallite) chiamano `exit()` anche con un gestore proprio: la difesa sono i limiti delle risorse |
+| Configurazione con l'ambiente del processo | Inclusa nella libreria, nessun file XML e nessuna variabile |
 
 ## Struttura del progetto
 
 ```
 Comprimio/                 app Mac, invariata (alcuni file anche nel target iOS)
-ComprimioiOS/              app iOS/iPadOS: App, AppStore, Views, LibraryEngine
+ComprimioiOS/              app iOS/iPadOS: App, AppStore, Views
+Packages/MagickEngine/     LibraryEngine + test nel simulatore (solo iOS)
 Scripts/build-imagemagick-ios.sh   cross-compila ImageMagick e le dipendenze
 Vendor/ImageMagick-iOS/    ImageMagick.xcframework (ios-arm64, ios-arm64-simulator)
 ```
@@ -73,12 +78,29 @@ ImageIO.
 
 ## Memoria
 
-Il Mac usa Q16HDRI, cioè 16 byte per pixel: una foto da 48 MP occupa circa
-770 MB, e su iPhone jetsam chiude l'app. Su iOS:
+Il Mac usa Q16HDRI, cioè pixel in virgola mobile. Misure della fase 1 su una
+foto da 48 MP (8064×6048), `-auto-orient -resize 50% -quality 82` verso WebP,
+simulatore su Apple silicon:
 
-- profondità **Q8** o **Q16 senza HDRI**, da decidere con le misure della fase 1;
-- `SetMagickResourceLimit` (memoria, map, area) calcolato da
-  `os_proc_available_memory()`, con la cache su disco nella cartella temporanea;
+| Build | Picco | Tempo | WebP |
+|---|---|---|---|
+| Mac Q16HDRI (sottoprocesso) | 1.063 MB | 2,6–2,8 s | 844.040 byte |
+| iOS Q16, nessun limite | 499 MB | 4,3 s | 844.062 byte |
+| iOS Q16, limite 384 MB | 360 MB | 3,3 s | 844.062 byte |
+| iOS Q16, limite 256 MB | 221 MB | 3,9 s | 844.062 byte |
+| iOS Q8, nessun limite | 255 MB | 3,8 s | 858.558 byte |
+
+(Tempi presi con la macchina sotto carico per l'indicizzazione di Spotlight:
+valgono come ordine di grandezza.)
+
+Decisioni:
+
+- **Q16 senza HDRI**: stesso file del Mac a meno di arrotondamenti. La Q8
+  dimezza la memoria ma perde i 16 bit e cambia i file;
+- **limite delle risorse** con `LibraryEngine.setMemoryLimit`, calcolato da
+  `os_proc_available_memory()` e diviso per le corsie: oltre il limite
+  ImageMagick usa la cache su disco nella cartella temporanea, e nel
+  simulatore non costa tempo apprezzabile. Da verificare su iPhone;
 - corsie parallele calcolate sulla memoria, non sui core (indicativamente 1–2
   su iPhone, 2–3 su iPad), e **una sola** per AVIF/HEIC (vedi la nota sul
   parallelismo: quegli encoder hanno già un pool di thread proprio).
@@ -95,18 +117,23 @@ iOS/iPadOS **17**. `BGContinuedProcessingTask` e Liquid Glass solo con
 ### Fase 1 — Prova di fattibilità del motore
 La fase più rischiosa: se va bene, il resto è lavoro prevedibile.
 
-- [ ] `Scripts/build-imagemagick-ios.sh`: ImageMagick 7.1.2 + zlib,
-      libjpeg-turbo, libpng, libwebp per `ios-arm64` e `ios-arm64-simulator`,
-      `--without-modules --disable-openmp --without-threads`, output come
-      XCFramework statico
-- [ ] Configurazione minima nel bundle (`policy.xml`, `delegates.xml` vuoto,
-      `colors.xml`, `type.xml`…)
-- [ ] App iOS di prova con `LibraryEngine` che esegue `arguments(…)` con
-      `MagickCommandGenesis`
-- [ ] Avanzamento tramite callback, annullamento, gestori di errore
-- [ ] Misure su una foto da 48 MP: picco di memoria e tempi in Q8 e in Q16
-      senza HDRI, su iPhone e iPad reali
-- [ ] **Decisione:** profondità del quantum e limiti delle risorse
+- [x] `Scripts/build-imagemagick-ios.sh`: ImageMagick 7.1.2-30 + libjpeg-turbo,
+      libpng, libwebp (zlib e bzip2 dell'SDK) per `ios-arm64` e
+      `ios-arm64-simulator`, `--without-modules --disable-openmp`, output
+      come XCFramework statico. I thread POSIX restano: senza, i semafori di
+      ImageMagick sono vuoti e le corsie parallele non sarebbero sicure
+- [x] Configurazione inclusa nella libreria (`--enable-zero-configuration`)
+      invece dei file XML nel bundle
+- [x] `Packages/MagickEngine`: `LibraryEngine.run(arguments:)` con
+      `MagickImageCommand`. Il collegamento con `arguments(…)` del Mac
+      arriva in fase 3
+- [x] Avanzamento tramite callback, annullamento, gestori di errore,
+      corsie parallele indipendenti (8 test nel simulatore)
+- [x] Misure su una foto da 48 MP nel simulatore, Q8 e Q16 (vedi «Memoria»)
+- [x] **Decisione:** Q16 senza HDRI, con limite delle risorse
+- [ ] Misure su iPhone e iPad reali: aprire `Packages/MagickEngine/Package.swift`
+      in Xcode, scegliere il dispositivo e lanciare i test (⌘U) con
+      `MAGICK_FIXTURE` nello schema
 
 **Fatto quando:** un JPEG da 48 MP si converte in WebP su iPhone senza
 crash, con avanzamento e annullamento funzionanti.
@@ -175,8 +202,8 @@ crash, con avanzamento e annullamento funzionanti.
 
 | Decisione | Quando | Stato |
 |---|---|---|
-| Quantum Q8 o Q16 senza HDRI | fine fase 1 | da misurare |
-| Limiti delle risorse e numero di corsie | fine fase 1 | da misurare |
+| Quantum Q8 o Q16 senza HDRI | fine fase 1 | **Q16 senza HDRI** |
+| Limiti delle risorse e numero di corsie | fase 6 | 256 MB per corsia regge nel simulatore; da tarare su iPhone |
 | Formato intermedio per il passaggio ImageIO | fase 2 | proposta: TIFF a 16 bit |
 | Condividere i file o copiarli nel target iOS | fase 3 | proposta: condividere |
 
@@ -186,6 +213,7 @@ crash, con avanzamento e annullamento funzionanti.
 |---|---|
 | Una dipendenza non compila per iOS | Fase 1 solo con librerie note per funzionare; le altre una alla volta in fase 2 |
 | Memoria insufficiente su foto grandi | Quantum ridotto, limiti delle risorse, cache su disco, meno corsie |
-| Coder che chiama `exit()` o lascia stato globale sporco | Gestori di errore personalizzati; test di robustezza su file corrotti |
+| Coder che chiama `exit()` o lascia stato globale sporco | Gestori di errore personalizzati (gli errori fatali escono comunque); test di robustezza su file corrotti |
+| Misure falsate dallo scheduler | Le misure girano a QoS `.userInitiated`: con la QoS del test i tempi sono 20–25 volte più lunghi |
 | Formati che spariscono senza errore (come la trappola 2 del Mac) | Verifica automatica dei formati nello script di build |
 | Le modifiche condivise cambiano il Mac | Solo blocchi `#if os(macOS)`; build Mac verificata alla fine della fase 3 |

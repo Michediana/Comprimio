@@ -1,0 +1,7 @@
+module ImageMagick [system] {
+    header "ImageMagick.h"
+    link "z"
+    link "bz2"
+    link "iconv"
+    export *
+}

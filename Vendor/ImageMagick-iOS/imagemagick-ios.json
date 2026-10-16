@@ -1,0 +1,11 @@
+{
+  "quantumDepth": 16,
+  "hdri": false,
+  "minimumIOS": "17.0",
+  "sources": {
+    "imagemagick": "7.1.2-30",
+    "libpng": "1.6.59",
+    "libjpeg-turbo": "3.2.0",
+    "libwebp": "1.6.0"
+  }
+}

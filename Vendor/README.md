@@ -101,3 +101,57 @@ Un albero costruito da una bottle `arm64_tahoe` pretende macOS 26 anche se
 l'app dichiara di supportare la 13.5, e l'app parte ma non converte niente.
 Per un floor più basso servono bottle più vecchie (`arm64_sonoma`, `sonoma`)
 o una compilazione da sorgente con `-mmacosx-version-min`.
+
+## ImageMagick per iOS
+
+`Vendor/ImageMagick-iOS/ImageMagick.xcframework` è ImageMagick per iPhone e
+iPad, usato dal pacchetto `Packages/MagickEngine`. L'app Mac non lo usa e
+non ne dipende.
+
+Su iOS non si può lanciare `magick` come sottoprocesso, e l'App Store non
+accetta dylib sciolte. L'albero del Mac quindi non serve: qui ImageMagick
+è una libreria statica, linkata nell'app e invocata dentro il processo con
+`MagickImageCommand`, che accetta lo stesso `argv` del binario. Rispetto
+all'albero Mac:
+
+- **niente moduli**: i coder sono compilati dentro la libreria
+  (`--without-modules`), quindi niente libltdl e niente descrittori `.la`;
+- **configurazione inclusa** (`--enable-zero-configuration`): nessun file
+  XML e nessuna variabile d'ambiente, e nessun delegate esterno;
+- **Q16 senza HDRI**: su una foto da 48 MP il picco scende da 1,06 GB (Mac,
+  Q16HDRI) a 500 MB, e il WebP prodotto differisce da quello del Mac di
+  22 byte su 844 KB. La Q8 dimezzerebbe ancora la memoria, ma perde i 16 bit
+  e cambia i file (+1,7%); il limite delle risorse fa meglio senza questi
+  difetti (221 MB con 256 MB di limite, stesso tempo);
+- **nessuna dipendenza GPL/LGPL**: x265, libde265, libraw, liblqr e glib
+  sono esclusi. HEIC e RAW su iOS passeranno da ImageIO.
+
+Le versioni coincidono con quelle dell'albero Mac (ImageMagick 7.1.2-30,
+libpng 1.6.59, libjpeg-turbo 3.2.0, libwebp 1.6.0); zlib e bzip2 sono quelle
+dell'SDK. I dettagli sono in `imagemagick-ios.json`.
+
+### Ricostruire
+
+    brew install cmake ninja pkg-config
+    Scripts/build-imagemagick-ios.sh
+    git add Vendor/ImageMagick-iOS && git commit
+
+Lo script scarica i sorgenti, ne verifica lo SHA-256, compila gli slice
+`ios-arm64` e `ios-arm64-simulator` e sostituisce l'XCFramework. Si ferma se
+l'insieme dei delegate trovati da configure non è esattamente quello atteso:
+come sul Mac, un delegate mancante non dà errori, e il formato sparisce in
+silenzio. `QUANTUM=8` e `HDRI=yes` producono le varianti, `OUT=` le scrive
+altrove per confrontarle.
+
+### Verificare
+
+    cd Packages/MagickEngine
+    xcodebuild test -scheme MagickEngine \
+        -destination 'platform=iOS Simulator,name=iPhone 18 Pro'
+
+Per misurare memoria e tempi su una foto vera si passa il file con
+`TEST_RUNNER_MAGICK_FIXTURE=/percorso/foto.jpg`, e un limite di memoria con
+`TEST_RUNNER_MAGICK_MEMORY_LIMIT_MB=256`. La misura gira con QoS
+`.userInitiated`, come le corsie dell'app: con la QoS predefinita del test
+i tempi risultano 20–25 volte più lunghi, perché lo scheduler lascia il
+processo sui core a efficienza.
