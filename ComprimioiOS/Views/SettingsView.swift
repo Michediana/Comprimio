@@ -479,7 +479,11 @@ private struct DestinationTab: View {
                 LabeledContent("Folder name") {
                     TextBox(text: $store.settings.subfolderName, placeholder: "Comprimio", width: 160)
                 }
-                HelpText("In Files, under On My iPad › Comprimio.")
+                if UIDevice.current.userInterfaceIdiom == .phone {
+                    HelpText("In Files, under On My iPhone › Comprimio.")
+                } else {
+                    HelpText("In Files, under On My iPad › Comprimio.")
+                }
             case .chosenFolder:
                 LabeledContent("Folder") {
                     Text(store.chosenFolderName ?? String(localized: "No folder chosen"))

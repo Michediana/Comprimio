@@ -2,9 +2,10 @@
 //  FileListView.swift
 //  Comprimio iOS
 //
-//  La lista nella sidebar dell'iPad: miniatura, nome, dimensioni, esito.
-//  Sul Mac è una tabella a colonne; qui le stesse informazioni stanno in due
-//  righe per elemento.
+//  La lista dei file: miniatura, nome, dimensioni, esito. Sul Mac è una
+//  tabella a colonne; qui le stesse informazioni stanno in due righe per
+//  elemento. Sull'iPad sta nella sidebar e seleziona; sull'iPhone ogni riga
+//  apre l'anteprima.
 //
 
 import QuickLookThumbnailing
@@ -15,23 +16,15 @@ struct FileListView: View {
     @EnvironmentObject private var store: AppStore
     @State private var isDropTargeted = false
 
+    /// Righe che portano all'anteprima (`NavigationLink` con l'ID del file)
+    /// invece di selezionare.
+    var navigates = false
+
     var body: some View {
-        List(selection: $store.selection) {
-            ForEach(store.items) { item in
-                FileRow(item: item)
-                    .tag(item.id)
-                    .contextMenu { menu(for: item) }
+        list
+            .overlay {
+                if store.items.isEmpty { EmptyListPlaceholder(showsActions: navigates) }
             }
-            .onDelete { offsets in
-                let ids = Set(offsets.map { store.items[$0].id })
-                store.remove(ids)
-            }
-            .deleteDisabled(store.isProcessing)
-        }
-        .listStyle(.sidebar)
-        .overlay {
-            if store.items.isEmpty { EmptyListPlaceholder() }
-        }
         .overlay {
             if isDropTargeted {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -48,12 +41,50 @@ struct FileListView: View {
         }
     }
 
+    // Una `List` con la selezione dentro una pila seleziona solo in modalità
+    // modifica: per navigare serve quella senza.
+    @ViewBuilder
+    private var list: some View {
+        if navigates {
+            List { rows }
+                .listStyle(.plain)
+        } else {
+            List(selection: $store.selection) { rows }
+                .listStyle(.sidebar)
+        }
+    }
+
+    private var rows: some View {
+        ForEach(store.items) { item in
+            Group {
+                if navigates {
+                    NavigationLink(value: item.id) { FileRow(item: item) }
+                } else {
+                    FileRow(item: item).tag(item.id)
+                }
+            }
+            .contextMenu { menu(for: item) }
+        }
+        .onDelete { offsets in
+            let ids = Set(offsets.map { store.items[$0].id })
+            store.remove(ids)
+        }
+        .deleteDisabled(store.isProcessing)
+    }
+
     @ViewBuilder
     private func menu(for item: ImageItem) -> some View {
         let ids = store.selection.contains(item.id) ? store.selection : [item.id]
         if let output = item.outputURL {
             ShareLink(item: output) {
                 Label("Share Result", systemImage: "square.and.arrow.up")
+            }
+            if !store.outputsToSave(in: ids).isEmpty {
+                Button {
+                    store.saveOutputsToPhotos(ids)
+                } label: {
+                    Label("Save to Photos", systemImage: "photo.badge.plus")
+                }
             }
         }
         Button(role: .destructive) {
@@ -153,11 +184,32 @@ private struct StatusIcon: View {
 }
 
 private struct EmptyListPlaceholder: View {
+    @EnvironmentObject private var store: AppStore
+    /// Sull'iPhone i pulsanti per cominciare: le Foto per prime, perché è
+    /// lì che stanno le immagini di un telefono.
+    var showsActions = false
+
     var body: some View {
         ContentUnavailableView {
             Label("No images", systemImage: "photo.on.rectangle.angled")
         } description: {
-            Text("Add photos or files with the + button, or drag them here.")
+            if showsActions {
+                Text("Choose the photos to compress, or images from Files.")
+            } else {
+                Text("Add photos or files with the + button, or drag them here.")
+            }
+        } actions: {
+            if showsActions {
+                Button {
+                    store.importRequest = .photos
+                } label: {
+                    Label("Choose Photos", systemImage: "photo.on.rectangle")
+                }
+                .glassButton(prominent: true)
+                .controlSize(.large)
+
+                Button("Browse Files") { store.importRequest = .files }
+            }
         }
     }
 }
@@ -173,19 +225,21 @@ struct Thumbnail: View {
     @State private var image: UIImage?
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.secondary.opacity(0.12))
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Image(systemName: "photo")
-                    .foregroundStyle(.tertiary)
+        // L'immagine in un overlay: prende la misura del riquadro e non la
+        // propria, così una miniatura larga non esce dal quadrato.
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(Color.secondary.opacity(0.12))
+            .overlay {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "photo")
+                        .foregroundStyle(.tertiary)
+                }
             }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .task(id: url) {
             image = await ThumbnailCache.shared.thumbnail(for: url, side: 44, scale: displayScale)
         }

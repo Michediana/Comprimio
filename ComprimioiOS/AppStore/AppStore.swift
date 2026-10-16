@@ -62,6 +62,11 @@ final class AppStore: ObservableObject {
     @Published var lastRunSummary: String?
     /// Avanzamento delle conversioni in corso, una voce per corsia attiva.
     @Published private(set) var itemProgress: [ImageItem.ID: MagickProgress] = [:]
+    /// Risultati già nella libreria Foto: scritti lì dal batch o salvati dopo.
+    @Published private(set) var savedToPhotos: Set<ImageItem.ID> = []
+    /// Risultati che Foto ha rifiutato (PCX, JPEG XL…): riprovare non serve.
+    @Published private(set) var rejectedByPhotos: Set<ImageItem.ID> = []
+    @Published private(set) var isSavingToPhotos = false
 
     // Anteprima
     @Published var previewOriginal: CGImage?
@@ -88,6 +93,8 @@ final class AppStore: ObservableObject {
     private var accessedURLs: [URL] = []
     /// Cartella di destinazione con l'accesso aperto per il batch in corso.
     private var runFolderAccess: URL?
+    /// Il batch in corso scrive nelle Foto.
+    private var runSavesToPhotos = false
 
     init() {
         previewDirectory = FileManager.default.temporaryDirectory
@@ -328,22 +335,13 @@ final class AppStore: ObservableObject {
 
     func startProcessing() {
         guard canProcess else { return }
-        // Per le Foto serve il permesso di aggiungere (solo quello: Comprimio
-        // non legge la libreria, le foto arrivano da PhotosPicker).
-        if destination == .photos {
-            let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
-            if status == .notDetermined {
-                Task {
-                    _ = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-                    self.startProcessing()
-                }
-                return
+        // Per le Foto serve il permesso di aggiungere, chiesto prima di
+        // partire. Accordato, la seconda chiamata passa oltre.
+        if destination == .photos, !Self.mayAddToPhotos {
+            Task {
+                if await requestPhotosAccess() { startProcessing() }
             }
-            guard status == .authorized || status == .limited else {
-                lastRunSummary = String(localized:
-                    "Comprimio is not allowed to add to Photos. You can allow it in Settings.")
-                return
-            }
+            return
         }
         guard let folder = prepareOutputFolder() else { return }
         let savesToPhotos = destination == .photos
@@ -352,6 +350,9 @@ final class AppStore: ObservableObject {
         processedCount = 0
         lastRunSummary = nil
         itemProgress = [:]
+        runSavesToPhotos = savesToPhotos
+        savedToPhotos = []
+        rejectedByPhotos = []
         for index in items.indices {
             items[index].status = .pending
             items[index].outputSize = nil
@@ -478,6 +479,69 @@ final class AppStore: ObservableObject {
         }
     }
 
+    // MARK: - Foto
+
+    /// Comprimio chiede solo di aggiungere: non legge la libreria, le foto
+    /// arrivano da PhotosPicker, che non ha bisogno di permessi.
+    private static var mayAddToPhotos: Bool {
+        let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        return status == .authorized || status == .limited
+    }
+
+    /// Chiede il permesso se non è ancora deciso. Negato, lo dice nel
+    /// riepilogo: il sistema non ripropone la richiesta.
+    private func requestPhotosAccess() async -> Bool {
+        if PHPhotoLibrary.authorizationStatus(for: .addOnly) == .notDetermined {
+            _ = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        }
+        guard Self.mayAddToPhotos else {
+            lastRunSummary = String(localized:
+                "Comprimio is not allowed to add to Photos. You can allow it in Settings.")
+            return false
+        }
+        return true
+    }
+
+    /// I risultati che si possono ancora salvare nelle Foto, fra `ids`
+    /// (tutti, se `nil`).
+    func outputsToSave(in ids: Set<ImageItem.ID>? = nil) -> [ImageItem] {
+        items.filter { item in
+            item.outputURL != nil
+                && !savedToPhotos.contains(item.id)
+                && !rejectedByPhotos.contains(item.id)
+                && ids?.contains(item.id) ?? true
+        }
+    }
+
+    /// Salva nelle Foto i risultati scritti altrove: sull'iPhone, con la
+    /// condivisione, è l'azione che segue la conversione.
+    func saveOutputsToPhotos(_ ids: Set<ImageItem.ID>? = nil) {
+        let pending = outputsToSave(in: ids)
+        guard !pending.isEmpty, !isSavingToPhotos, !isProcessing else { return }
+        isSavingToPhotos = true
+        Task {
+            defer { isSavingToPhotos = false }
+            guard await requestPhotosAccess() else { return }
+            // Se il batch ha scritto nella cartella scelta, l'accesso è
+            // stato chiuso alla fine: va riaperto per leggere i file.
+            let folder = SavedOutputFolder.resolve()
+            let accessing = folder?.startAccessingSecurityScopedResource() ?? false
+            defer { if accessing { folder?.stopAccessingSecurityScopedResource() } }
+            for item in pending {
+                guard let url = item.outputURL else { continue }
+                do {
+                    try await Self.saveToPhotos(url)
+                    savedToPhotos.insert(item.id)
+                } catch {
+                    rejectedByPhotos.insert(item.id)
+                    if let index = items.firstIndex(where: { $0.id == item.id }) {
+                        items[index].errorMessage = error.localizedDescription
+                    }
+                }
+            }
+        }
+    }
+
     private func setStatus(_ status: ProcessingStatus, for id: ImageItem.ID) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items[index].status = status
@@ -490,6 +554,7 @@ final class AppStore: ObservableObject {
             items[index].status = .done
             items[index].outputURL = url
             items[index].outputSize = size
+            if runSavesToPhotos { savedToPhotos.insert(id) }
         case .failure(let error):
             items[index].status = .failed
             items[index].errorMessage = error.localizedDescription

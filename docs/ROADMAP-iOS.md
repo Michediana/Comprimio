@@ -1,6 +1,6 @@
 # Roadmap: Comprimio per iPad e iPhone
 
-Stato: **fasi 1–4 completate nel simulatore**, manca la misura su iPhone reale · Branch di lavoro: `ios-port`
+Stato: **fasi 1–5 completate nel simulatore**, manca la misura su iPhone reale · Branch di lavoro: `ios-port`
 
 Obiettivo: portare Comprimio su iPadOS e iOS con le stesse opzioni di
 conversione del Mac, **lasciando l'app Mac com'è**.
@@ -264,10 +264,32 @@ crash, con avanzamento e annullamento funzionanti.
       `requestGeometryUpdate` con il multitasking)
 
 ### Fase 5 — App iPhone
-- [ ] Flusso compatto con `NavigationStack`: lista → impostazioni (sheet) →
-      anteprima
-- [ ] Sorgente predefinita: Libreria Foto
-- [ ] Salvataggio nelle Foto e condivisione come azioni principali
+- [x] Flusso compatto con `NavigationStack` (`CompactContentView`), scelto
+      da `ContentView` con la size class compatta o sull'iPhone (anche un
+      Pro Max in orizzontale): lista con Converti in fondo → tocco su una
+      riga → anteprima (riquadri impilati). Le impostazioni sono un foglio
+      a mezza altezza che lascia toccare ciò che sta sotto, così
+      l'anteprima si aggiorna mentre si cambiano
+- [x] Sorgente predefinita: Libreria Foto. Il `+` apre le Foto con un tocco
+      (File e cartella tenendo premuto); a lista vuota «Scegli foto» e
+      «Sfoglia File». Senza una scelta salvata, sull'iPhone anche la
+      destinazione è Foto (sull'iPad resta la cartella dell'app)
+- [x] Salvataggio nelle Foto e condivisione come azioni principali: dopo il
+      batch la barra mostra «Salva nelle Foto», Condividi e Riconverti;
+      l'anteprima di un file convertito ha Salva e Condividi per quel file.
+      «Salva nelle Foto» funziona anche con le altre destinazioni (riapre
+      l'accesso alla cartella scelta); con la destinazione Foto indica che
+      è già fatto. Ciò che Foto rifiuta (PCX…) non si ripropone
+- [x] Provato nel simulatore iPhone 17 (con agganci temporanei, non
+      committati): lista vuota, lista, avanzamento e Annulla, conversione
+      nelle Foto, conversione nella cartella dell'app con «Salva nelle Foto»
+      e «Mostra in File», anteprima, foglio delle impostazioni sopra
+      l'anteprima. Corretta anche la miniatura che usciva dal quadrato con
+      le immagini larghe (anche sull'iPad)
+- [ ] Da provare a mano: PhotosPicker dal `+` e dalla lista vuota, il menu
+      tenendo premuto, il foglio trascinato fra le due altezze, ShareLink,
+      lo scorrimento per eliminare, l'iPad in Split View stretta (passa al
+      flusso compatto)
 
 ### Fase 6 — Background e rifinitura
 - [ ] `BGContinuedProcessingTask` per i batch (iOS 26), `beginBackgroundTask`
@@ -277,7 +299,11 @@ crash, con avanzamento e annullamento funzionanti.
 - [ ] Localizzazione (`Localizable.xcstrings` condiviso dove possibile)
 - [ ] Privacy: privacy manifest (`NSPhotoLibraryAddUsageDescription` c'è
       già dalla fase 4, solo in inglese)
-- [ ] Tradurre le stringhe nuove di iOS (destinazioni, importazione)
+- [ ] Tradurre le stringhe nuove di iOS (destinazioni, importazione,
+      azioni dell'iPhone)
+- [ ] Avvio lento nel simulatore appena acceso (~40 s prima del primo
+      fotogramma): capire se è `ImageMagick.inspect()` sul main thread e
+      se succede anche sul dispositivo
 
 ### Fase 7 — Release
 - [ ] Job iOS separato in `.github/workflows/release.yml` (quello Mac non si tocca)

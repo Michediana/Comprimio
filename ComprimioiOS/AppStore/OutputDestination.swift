@@ -12,7 +12,7 @@
 //  del Mac, e su iOS il nome del file lo decide comunque `outputURL`.
 //
 
-import Foundation
+import UIKit
 
 enum OutputDestination: String, CaseIterable, Identifiable {
     case appFolder
@@ -39,8 +39,14 @@ enum OutputDestination: String, CaseIterable, Identifiable {
 
     private static let key = "iosOutputDestination"
 
+    /// Senza una scelta: le Foto sull'iPhone, dove le immagini vengono da lì
+    /// e tornano lì; la cartella dell'app sull'iPad.
+    @MainActor
     static func load() -> OutputDestination {
-        UserDefaults.standard.string(forKey: key).flatMap(OutputDestination.init(rawValue:)) ?? .appFolder
+        if let saved = UserDefaults.standard.string(forKey: key).flatMap(OutputDestination.init(rawValue:)) {
+            return saved
+        }
+        return UIDevice.current.userInterfaceIdiom == .phone ? .photos : .appFolder
     }
 
     func save() {

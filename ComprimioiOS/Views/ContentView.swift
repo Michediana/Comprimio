@@ -2,9 +2,10 @@
 //  ContentView.swift
 //  Comprimio iOS
 //
-//  L'app per iPad: la lista nella sidebar, l'anteprima nel dettaglio, le
-//  impostazioni nell'inspector. Su iPhone `NavigationSplitView` si riduce a
-//  una pila; il flusso pensato per l'iPhone arriva con la fase 5.
+//  Sceglie la disposizione e apre gli importatori, comuni alle due.
+//  Sull'iPad la lista sta nella sidebar, l'anteprima nel dettaglio e le
+//  impostazioni nell'inspector; sull'iPhone, e sull'iPad in una finestra
+//  stretta, c'è `CompactContentView`.
 //
 
 import MagickEngine
@@ -14,27 +15,25 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
-    @SceneStorage("showsSettings") private var showsSettings = true
     @State private var importer: ImportRequest?
     @State private var isPickingPhotos = false
     @State private var photoSelection: [PhotosPickerItem] = []
 
+    /// Anche un iPhone grande in orizzontale è «regular»: la sidebar e
+    /// l'inspector lì non ci stanno comunque.
+    private var isCompact: Bool {
+        sizeClass == .compact || UIDevice.current.userInterfaceIdiom == .phone
+    }
+
     var body: some View {
-        NavigationSplitView {
-            FileListView()
-                .navigationTitle("Comprimio")
-                .toolbar { sidebarToolbar }
-        } detail: {
-            PreviewView()
-                .navigationTitle(store.selectedItem?.name ?? "")
-                .navigationBarTitleDisplayMode(.inline)
-                .safeAreaInset(edge: .bottom, spacing: 0) { StatusBar() }
-                .toolbar { detailToolbar }
-                .inspector(isPresented: $showsSettings) {
-                    NavigationStack { SettingsView() }
-                        .inspectorColumnWidth(min: 320, ideal: 370, max: 480)
-                }
+        Group {
+            if isCompact {
+                CompactContentView()
+            } else {
+                SplitContentView()
+            }
         }
         .fileImporter(
             isPresented: Binding(get: { importer != nil }, set: { if !$0 { importer = nil } }),
@@ -55,19 +54,45 @@ struct ContentView: View {
             store.importPhotos(selection)
             photoSelection = []
         }
-        // Le voci di menu (⌘O e simili) passano dallo store: i comandi
-        // dell'app non vedono lo stato di questa vista.
+        // Menu, pulsanti e scorciatoie (⌘O e simili) passano dallo store:
+        // i comandi dell'app e le viste figlie non vedono lo stato di questa.
         .onChange(of: store.importRequest) { _, request in
             guard let request else { return }
             store.importRequest = nil
-            open(request)
+            switch request {
+            case .photos: isPickingPhotos = true
+            case .files, .folder: importer = request
+            }
         }
     }
+}
 
-    private func open(_ request: ImportRequest) {
-        switch request {
-        case .photos: isPickingPhotos = true
-        case .files, .folder: importer = request
+/// Da dove importare, chiesto da un menu, da un pulsante o da una
+/// scorciatoia: passa da `AppStore.importRequest`, che `ContentView` ascolta.
+enum ImportRequest: Hashable {
+    case photos, files, folder
+}
+
+/// La disposizione dell'iPad: lista, anteprima e impostazioni insieme.
+private struct SplitContentView: View {
+    @EnvironmentObject private var store: AppStore
+    @SceneStorage("showsSettings") private var showsSettings = true
+
+    var body: some View {
+        NavigationSplitView {
+            FileListView()
+                .navigationTitle("Comprimio")
+                .toolbar { sidebarToolbar }
+        } detail: {
+            PreviewView()
+                .navigationTitle(store.selectedItem?.name ?? "")
+                .navigationBarTitleDisplayMode(.inline)
+                .safeAreaInset(edge: .bottom, spacing: 0) { StatusBar() }
+                .toolbar { detailToolbar }
+                .inspector(isPresented: $showsSettings) {
+                    NavigationStack { SettingsView() }
+                        .inspectorColumnWidth(min: 320, ideal: 370, max: 480)
+                }
         }
     }
 
@@ -75,15 +100,7 @@ struct ContentView: View {
     private var sidebarToolbar: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Menu {
-                Button { open(.photos) } label: {
-                    Label("From Photos…", systemImage: "photo.on.rectangle")
-                }
-                Button { open(.files) } label: {
-                    Label("Add Images…", systemImage: "doc")
-                }
-                Button { open(.folder) } label: {
-                    Label("Add Folder…", systemImage: "folder.badge.plus")
-                }
+                ImportMenuItems()
             } label: {
                 Label("Add", systemImage: "plus")
             }
@@ -131,16 +148,41 @@ struct ContentView: View {
     }
 }
 
-/// Da dove importare, chiesto da un menu o da una scorciatoia.
-enum ImportRequest: Hashable {
-    case photos, files, folder
+/// Le tre strade per aggiungere immagini, per i menu delle due disposizioni.
+struct ImportMenuItems: View {
+    @EnvironmentObject private var store: AppStore
+
+    var body: some View {
+        Button { store.importRequest = .photos } label: {
+            Label("From Photos…", systemImage: "photo.on.rectangle")
+        }
+        Button { store.importRequest = .files } label: {
+            Label("Add Images…", systemImage: "doc")
+        }
+        Button { store.importRequest = .folder } label: {
+            Label("Add Folder…", systemImage: "folder.badge.plus")
+        }
+    }
 }
 
-/// Barra in fondo al dettaglio: l'avanzamento durante il batch, l'esito
-/// dopo, il riepilogo delle impostazioni a riposo.
+/// Barra in fondo al dettaglio dell'iPad.
 private struct StatusBar: View {
+    var body: some View {
+        StatusContent()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .background(.bar)
+    }
+}
+
+/// L'avanzamento durante il batch, l'esito dopo, il riepilogo delle
+/// impostazioni a riposo. Con `stacked` le didascalie stanno sopra le barre:
+/// sull'iPhone accanto non ci starebbero.
+struct StatusContent: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.openURL) private var openURL
+    var stacked = false
 
     var body: some View {
         Group {
@@ -161,14 +203,10 @@ private struct StatusBar: View {
                 Text(plan)
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(stacked ? 2 : 1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity)
-        .background(.bar)
     }
 
     /// Sopra l'immagine su cui ImageMagick sta lavorando, sotto il batch.
@@ -190,21 +228,35 @@ private struct StatusBar: View {
     /// `value` nullo: la corsia è appena partita e non ha ancora riportato
     /// nulla, quindi la barra si muove senza indicare una frazione.
     private func bar(value: Double?, leading: String, trailing: String?) -> some View {
-        HStack(spacing: 10) {
-            Text(leading)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: 260, alignment: .leading)
-            Group {
-                if let value {
-                    ProgressView(value: min(max(value, 0), 1))
-                } else {
-                    ProgressView().progressViewStyle(.linear)
+        let caption = Text(leading)
+            .lineLimit(1)
+            .truncationMode(.middle)
+        let figure = Text(trailing ?? "")
+            .monospacedDigit()
+        let progress = Group {
+            if let value {
+                ProgressView(value: min(max(value, 0), 1))
+            } else {
+                ProgressView().progressViewStyle(.linear)
+            }
+        }
+        return Group {
+            if stacked {
+                VStack(spacing: 4) {
+                    HStack {
+                        caption
+                        Spacer(minLength: 8)
+                        figure
+                    }
+                    progress
+                }
+            } else {
+                HStack(spacing: 10) {
+                    caption.frame(maxWidth: 260, alignment: .leading)
+                    progress
+                    figure.frame(width: 52, alignment: .trailing)
                 }
             }
-            Text(trailing ?? "")
-                .monospacedDigit()
-                .frame(width: 52, alignment: .trailing)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
