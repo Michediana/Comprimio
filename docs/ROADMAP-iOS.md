@@ -1,6 +1,6 @@
 # Roadmap: Comprimio per iPad e iPhone
 
-Stato: **fasi 1, 2 e 3 completate nel simulatore**, manca la misura su iPhone reale · Branch di lavoro: `ios-port`
+Stato: **fasi 1–4 completate nel simulatore**, manca la misura su iPhone reale · Branch di lavoro: `ios-port`
 
 Obiettivo: portare Comprimio su iPadOS e iOS con le stesse opzioni di
 conversione del Mac, **lasciando l'app Mac com'è**.
@@ -57,6 +57,7 @@ Vendor/ImageMagick-iOS/    ImageMagick.xcframework (ios-arm64, ios-arm64-simulat
 | `Services/ImageMagick.swift` | Condiviso, con `#if os(macOS)` attorno a `Process`, `MagickLocation`, `runsOnThisMac` |
 | `Models/WatermarkSettings` | Condiviso, con `#if` su `NSFontManager` (iOS: `UIFont.familyNames`) |
 | `Services/AppStore`, `FolderAccess`, `Views/*`, `ComprimioApp` | Riscritti in `ComprimioiOS/` |
+| `Views/PreviewZoom` | Condiviso: lo stato dello zoom; la NSView che cattura gli eventi è in `#if os(macOS)` |
 | `Localizable.xcstrings`, `Assets.xcassets`, `ComprimioIcon.icon` | Condivisi |
 | `InfoPlist.xcstrings`, entitlement, `Support/DebugSnapshot`, `Support/LiquidGlass` | Solo Mac |
 
@@ -230,18 +231,37 @@ crash, con avanzamento e annullamento funzionanti.
       test nuovi nel pacchetto (18 in tutto)
 
 ### Fase 4 — App iPad
-- [ ] `NavigationSplitView`: lista nella sidebar, impostazioni nell'inspector,
-      anteprima nel dettaglio
-- [ ] Importazione: `.fileImporter` (file e cartelle), `PhotosPicker`,
-      drag & drop
-- [ ] Anteprima affiancata con `MagnifyGesture` + `DragGesture` sincronizzati
-- [ ] Controlli: `Slider` con tacche al posto di `TickSlider`, `TextField` al
-      posto di `NativeTextField`
-- [ ] Miniature con `QLThumbnailGenerator`
-- [ ] Uscita: cartella scelta (bookmark security-scoped), Foto
-      (`PHPhotoLibrary`, add-only), `ShareLink`
-- [ ] Scorciatoie da tastiera (Converti, Annulla)
-- [ ] «Apri con» da File: tipi di documento + `.onOpenURL`
+- [x] `NavigationSplitView`: lista nella sidebar, impostazioni nell'inspector
+      (cinque schede come sul Mac, a icone), anteprima nel dettaglio con la
+      barra di avanzamento in fondo
+- [x] Importazione: `.fileImporter` (file e cartelle), `PhotosPicker` con
+      `preferredItemEncoding: .current` (l'originale, non un JPEG), drag &
+      drop con `loadInPlaceFileRepresentation`. Ciò che non arriva «in
+      loco» è copiato in `tmp/Comprimio-import`, una sottocartella per
+      file, cancellata quando il file esce dalla lista
+- [x] Anteprima affiancata (impilata in verticale) con `MagnifyGesture` +
+      `DragGesture` e doppio tocco, sullo `PreviewZoom` del Mac. Ingrandendo,
+      anche l'originale si ricarica a piena risoluzione (fino a 8192 px)
+- [x] Controlli: `TickedSlider` (tacche e numeri sotto uno `Slider`,
+      allineati alla corsa misurata su `UISlider`), `TextField` al posto di
+      `NativeTextField`
+- [x] Miniature con `QLThumbnailGenerator`, in cache
+- [x] Uscita (`OutputDestination`, preferenza solo iOS): cartella dell'app
+      in File, cartella scelta (bookmark), Foto (`PHAssetCreationRequest`
+      con il file così com'è, permesso *add-only*), `ShareLink`. Il logo
+      della filigrana è copiato in Application Support
+- [x] Scorciatoie da tastiera come sul Mac (⌘O, ⇧⌘O, ⌥⌘O, ⌘↩, ⌘., ⌘R,
+      ⌘+/⌘−/⌘0 sull'anteprima)
+- [x] «Apri con» da File: `CFBundleDocumentTypes` per `public.image` in
+      `ComprimioiOS/Info.plist` + `.onOpenURL`
+- [x] Provato nel simulatore iPad (con agganci temporanei, non committati):
+      lista e miniature, anteprima e zoom sincronizzato, conversione in HEIC
+      nella cartella dell'app, JPEG nelle Foto, PCX rifiutato da Foto con
+      errore per file. Build Mac ancora identica alla baseline
+- [ ] Da provare a mano, perché il simulatore non si può toccare da qui:
+      gesture con le dita, i tre importatori, la scelta della cartella,
+      `ShareLink`, «Apri con», le scorciatoie, l'orizzontale (iPadOS ignora
+      `requestGeometryUpdate` con il multitasking)
 
 ### Fase 5 — App iPhone
 - [ ] Flusso compatto con `NavigationStack`: lista → impostazioni (sheet) →
@@ -255,7 +275,9 @@ crash, con avanzamento e annullamento funzionanti.
 - [ ] Limiti di memoria e corsie tarati per dispositivo
 - [ ] Gestione degli avvisi di memoria: sospendere le corsie, non crashare
 - [ ] Localizzazione (`Localizable.xcstrings` condiviso dove possibile)
-- [ ] Privacy: `NSPhotoLibraryAddUsageDescription`, privacy manifest
+- [ ] Privacy: privacy manifest (`NSPhotoLibraryAddUsageDescription` c'è
+      già dalla fase 4, solo in inglese)
+- [ ] Tradurre le stringhe nuove di iOS (destinazioni, importazione)
 
 ### Fase 7 — Release
 - [ ] Job iOS separato in `.github/workflows/release.yml` (quello Mac non si tocca)
@@ -280,7 +302,7 @@ crash, con avanzamento e annullamento funzionanti.
 | Formato intermedio per il passaggio ImageIO | fase 2 | **TIFF non compresso alla profondità dell'originale** (8 o 16 bit) |
 | libheif (LGPL-3.0) linkata staticamente per l'AVIF | prima della fase 7 | aperta: tenerla rispettando la LGPL (ricollegamento possibile), o togliere l'AVIF su iOS |
 | Condividere i file o copiarli nel target iOS | fase 3 | **condividere** (gruppo sincronizzato con eccezioni per il target iOS) |
-| Dove scrivere i file convertiti su iOS | fase 4 | provvisorio: Documenti dell'app |
+| Dove scrivere i file convertiti su iOS | fase 4 | **cartella dell'app, cartella scelta o Foto** (`OutputDestination`) |
 
 ## Rischi
 

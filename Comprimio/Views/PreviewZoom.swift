@@ -7,7 +7,9 @@
 //  restare inquadrate esattamente allo stesso modo.
 //
 
+#if os(macOS)
 import AppKit
+#endif
 import SwiftUI
 
 struct PreviewZoom: Equatable {
@@ -80,6 +82,9 @@ struct PreviewZoom: Equatable {
     }
 }
 
+// Su iPad le stesse azioni arrivano dalle gesture SwiftUI (vedi
+// ComprimioiOS/Views/PreviewView.swift): lo stato sopra è condiviso.
+#if os(macOS)
 /// Cattura pinch, ⌘-scroll, scroll e trascinamento sopra l'anteprima: su
 /// macOS le gesture SwiftUI non ricevono gli eventi della rotella.
 struct ZoomInteraction: NSViewRepresentable {
@@ -174,3 +179,4 @@ final class ZoomInteractionView: NSView {
         if event.clickCount == 2 { onDoubleClick?(centered(event)) }
     }
 }
+#endif

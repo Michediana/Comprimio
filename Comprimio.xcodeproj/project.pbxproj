@@ -30,9 +30,15 @@
 				Views/ContentView.swift,
 				Views/FileListPane.swift,
 				Views/PreviewPane.swift,
-				Views/PreviewZoom.swift,
 				Views/SettingsComponents.swift,
 				Views/SettingsPane.swift,
+			);
+			target = F5105A010000000000000004 /* Comprimio iOS */;
+		};
+		F5105A01000000000000000E /* Exceptions for "ComprimioiOS" folder in "Comprimio iOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
 			);
 			target = F5105A010000000000000004 /* Comprimio iOS */;
 		};
@@ -49,6 +55,9 @@
 		};
 		F5105A010000000000000002 /* ComprimioiOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F5105A01000000000000000E /* Exceptions for "ComprimioiOS" folder in "Comprimio iOS" target */,
+			);
 			path = ComprimioiOS;
 			sourceTree = "<group>";
 		};
@@ -444,9 +453,11 @@
 				ENABLE_PREVIEWS = YES;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ComprimioiOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Comprimio;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Comprimio adds the converted images to your library when you choose Photos as the destination. It never reads or changes your existing photos.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;
@@ -487,9 +498,11 @@
 				ENABLE_PREVIEWS = YES;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ComprimioiOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Comprimio;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Comprimio adds the converted images to your library when you choose Photos as the destination. It never reads or changes your existing photos.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIFileSharingEnabled = YES;

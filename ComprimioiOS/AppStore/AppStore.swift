@@ -6,13 +6,14 @@
 //  e anteprima. Segue l'AppStore del Mac; cambiano il motore (LibraryEngine
 //  nel processo invece del binario `magick`), le immagini (`CGImage` invece
 //  di `NSImage`), l'accesso ai file (URL security-scoped dei documenti scelti)
-//  e la destinazione, che per ora è la cartella Documenti dell'app.
+//  e la destinazione (vedi `OutputDestination`).
 //
 
 import Combine
 import Foundation
 import ImageIO
 import MagickEngine
+import Photos
 import SwiftUI
 
 /// Risultato di una conversione di anteprima, trasferibile fra i task.
@@ -45,8 +46,16 @@ final class AppStore: ObservableObject {
         KeyPathComparator(\ImageItem.name, order: .forward)
     ]
     @Published var settings: ConversionSettings = .load()
+    @Published var destination: OutputDestination = .load() {
+        didSet { destination.save() }
+    }
+    /// Nome della cartella scelta come destinazione, se ce n'è una.
+    @Published private(set) var chosenFolderName: String?
 
     @Published private(set) var install: MagickInstall?
+
+    /// Importazione chiesta da una scorciatoia; la apre `ContentView`.
+    @Published var importRequest: ImportRequest?
 
     @Published var isProcessing = false
     @Published var processedCount = 0
@@ -69,12 +78,16 @@ final class AppStore: ObservableObject {
     private var batchCancellation: MagickCancellation?
     private var previewedItemID: ImageItem.ID?
     private var originalLoadedItemID: ImageItem.ID?
+    /// L'originale mostrato è a piena risoluzione (fino a `detailFit`).
+    private var originalIsDetailed = false
     private var processingTask: Task<Void, Never>?
     private var cancellables: Set<AnyCancellable> = []
     private let previewDirectory: URL
     /// File e cartelle scelti dall'utente con l'accesso aperto: fuori dal
     /// contenitore dell'app un URL si legge solo fra `start…` e `stop…`.
     private var accessedURLs: [URL] = []
+    /// Cartella di destinazione con l'accesso aperto per il batch in corso.
+    private var runFolderAccess: URL?
 
     init() {
         previewDirectory = FileManager.default.temporaryDirectory
@@ -83,6 +96,9 @@ final class AppStore: ObservableObject {
 
         LibraryEngine.setMemoryLimit(ConversionBudget.current.memoryLimit)
         install = ImageMagick.inspect()
+        chosenFolderName = SavedOutputFolder.resolve()?.lastPathComponent
+        // Copie rimaste da una sessione chiusa dal sistema: la lista è vuota.
+        ImportInbox.removeUnused(keeping: [])
 
         // Salva le impostazioni e rigenera l'anteprima quando qualcosa cambia.
         $settings
@@ -144,9 +160,9 @@ final class AppStore: ObservableObject {
         return result
     }
 
-    func removeSelected() {
-        items.removeAll { selection.contains($0.id) }
-        selection = []
+    func remove(_ ids: Set<ImageItem.ID>) {
+        items.removeAll { ids.contains($0.id) }
+        selection.subtract(ids)
         releaseUnusedAccess()
     }
 
@@ -159,8 +175,9 @@ final class AppStore: ObservableObject {
     }
 
     /// Chiude l'accesso ai file e alle cartelle che non servono più a
-    /// nessun elemento della lista.
+    /// nessun elemento della lista, e cancella le copie importate.
     private func releaseUnusedAccess() {
+        ImportInbox.removeUnused(keeping: items.map(\.url))
         let paths = items.map(\.url.standardizedFileURL.path)
         accessedURLs.removeAll { url in
             let root = url.standardizedFileURL.path
@@ -185,13 +202,59 @@ final class AppStore: ObservableObject {
 
     // MARK: - Destinazione
 
-    /// Dove finiscono i file convertiti: per ora `Documenti/<sottocartella>`
-    /// dell'app, visibile in File. Scrivere accanto agli originali, in una
-    /// cartella scelta o nelle Foto arriva con la fase 4.
-    var outputFolder: URL {
+    /// La cartella dell'app per i file convertiti, `Documenti/<sottocartella>`:
+    /// è quella che File mostra sotto «Sul mio iPhone/iPad › Comprimio».
+    var appFolder: URL {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let name = settings.subfolderName.isEmpty ? "Comprimio" : settings.subfolderName
         return documents.appendingPathComponent(name, isDirectory: true)
+    }
+
+    /// Cartella di passaggio per i file destinati alle Foto: restano qui per
+    /// poterli condividere, fino al batch successivo.
+    private static let photosStaging = FileManager.default.temporaryDirectory
+        .appendingPathComponent("Comprimio-output", isDirectory: true)
+
+    /// Ricorda la cartella scelta in File come destinazione.
+    func setOutputFolder(_ url: URL) {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        do {
+            try SavedOutputFolder.save(url)
+            chosenFolderName = url.lastPathComponent
+            destination = .chosenFolder
+        } catch {
+            lastRunSummary = String(localized: "Cannot use “\(url.lastPathComponent)”: \(error.localizedDescription)")
+        }
+    }
+
+    /// Dove scrivere in questo batch. Apre l'accesso alla cartella scelta,
+    /// che resta aperto fino alla fine del batch; `nil` se non si può.
+    private func prepareOutputFolder() -> URL? {
+        switch destination {
+        case .appFolder:
+            return appFolder
+        case .photos:
+            try? FileManager.default.removeItem(at: Self.photosStaging)
+            return Self.photosStaging
+        case .chosenFolder:
+            guard let folder = SavedOutputFolder.resolve() else {
+                lastRunSummary = String(localized: "Choose the destination folder first.")
+                return nil
+            }
+            guard folder.startAccessingSecurityScopedResource() else {
+                lastRunSummary = String(localized:
+                    "Cannot write to “\(folder.lastPathComponent)”: permission denied.")
+                return nil
+            }
+            runFolderAccess = folder
+            return folder
+        }
+    }
+
+    private func closeOutputFolder() {
+        runFolderAccess?.stopAccessingSecurityScopedResource()
+        runFolderAccess = nil
     }
 
     /// Il nome lo decide `ImageMagick.outputURL`, come sul Mac; cambia solo
@@ -205,6 +268,35 @@ final class AppStore: ObservableObject {
         settings.destination = .customFolder
         settings.customFolderPath = folder.path
         return ImageMagick.outputURL(for: input, settings: settings)
+    }
+
+    /// I file prodotti dall'ultimo batch, per condividerli.
+    var outputURLs: [URL] { items.compactMap(\.outputURL) }
+
+    /// La cartella dell'app aperta in File, se è lì che si è scritto.
+    var appFolderInFiles: URL? {
+        guard destination == .appFolder, !outputURLs.isEmpty else { return nil }
+        return URL(string: "shareddocuments://" + appFolder.path)
+    }
+
+    // MARK: - Filigrana
+
+    /// Il logo va copiato nell'app: un file scelto in File è leggibile solo
+    /// finché l'accesso è aperto, e la filigrana deve valere anche domani.
+    func setWatermarkImage(_ url: URL) {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Watermark", isDirectory: true)
+        do {
+            try? FileManager.default.removeItem(at: folder)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let copy = folder.appendingPathComponent(url.lastPathComponent)
+            try FileManager.default.copyItem(at: url, to: copy)
+            settings.watermark.imagePath = copy.path
+        } catch {
+            settings.watermark.imagePath = ""
+        }
     }
 
     // MARK: - Avanzamento per la barra
@@ -230,8 +322,31 @@ final class AppStore: ObservableObject {
 
     // MARK: - Elaborazione batch
 
+    var canProcess: Bool {
+        install != nil && !isProcessing && !items.isEmpty && isFormatSupported
+    }
+
     func startProcessing() {
-        guard install != nil, !isProcessing, !items.isEmpty else { return }
+        guard canProcess else { return }
+        // Per le Foto serve il permesso di aggiungere (solo quello: Comprimio
+        // non legge la libreria, le foto arrivano da PhotosPicker).
+        if destination == .photos {
+            let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+            if status == .notDetermined {
+                Task {
+                    _ = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+                    self.startProcessing()
+                }
+                return
+            }
+            guard status == .authorized || status == .limited else {
+                lastRunSummary = String(localized:
+                    "Comprimio is not allowed to add to Photos. You can allow it in Settings.")
+                return
+            }
+        }
+        guard let folder = prepareOutputFolder() else { return }
+        let savesToPhotos = destination == .photos
 
         isProcessing = true
         processedCount = 0
@@ -245,7 +360,6 @@ final class AppStore: ObservableObject {
         }
 
         let settings = self.settings
-        let folder = outputFolder
         let cancellation = MagickCancellation()
         batchCancellation = cancellation
         let jobs = items.map { (id: $0.id, url: $0.url) }
@@ -267,10 +381,11 @@ final class AppStore: ObservableObject {
                         // Le misure della fase 1: alla QoS ereditata dal task
                         // i tempi sono 20–25 volte più lunghi.
                         let outcome = await Task.detached(priority: .userInitiated) {
-                            Self.process(
+                            await Self.process(
                                 url: job.url,
                                 settings: settings,
                                 folder: folder,
+                                savesToPhotos: savesToPhotos,
                                 cancellation: cancellation,
                                 onProgress: { progress in
                                     Task { @MainActor in
@@ -315,6 +430,7 @@ final class AppStore: ObservableObject {
         processingTask = nil
         isProcessing = false
         itemProgress = [:]
+        closeOutputFolder()
     }
 
     /// Lavoro pesante: gira fuori dal main actor.
@@ -322,9 +438,10 @@ final class AppStore: ObservableObject {
         url: URL,
         settings: ConversionSettings,
         folder: URL,
+        savesToPhotos: Bool,
         cancellation: MagickCancellation,
         onProgress: @escaping @Sendable (MagickProgress) -> Void
-    ) -> Result<(URL, Int64), Error> {
+    ) async -> Result<(URL, Int64), Error> {
         do {
             let target = outputURL(for: url, settings: settings, folder: folder)
             let produced = try ImageMagick.convert(
@@ -336,9 +453,28 @@ final class AppStore: ObservableObject {
             )
             let attrs = try FileManager.default.attributesOfItem(atPath: produced.path)
             let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+            if savesToPhotos { try await saveToPhotos(produced) }
             return .success((produced, size))
         } catch {
             return .failure(error)
+        }
+    }
+
+    /// Aggiunge il file alla libreria così com'è, byte per byte: passare da
+    /// un `UIImage` lo ricodificherebbe e butterebbe via la compressione.
+    private nonisolated static func saveToPhotos(_ file: URL) async throws {
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCreationRequest.forAsset()
+                let options = PHAssetResourceCreationOptions()
+                options.originalFilename = file.lastPathComponent
+                request.addResource(with: .photo, fileURL: file, options: options)
+            }
+        } catch {
+            // Foto accetta solo i formati che sa mostrare (JPEG, HEIC, PNG,
+            // TIFF, GIF…): un PCX o un JPEG XL viene rifiutato.
+            throw MagickError(message: String(localized:
+                "Photos did not accept the \(file.pathExtension.uppercased()) file. Choose another destination for this format."))
         }
     }
 
@@ -363,6 +499,7 @@ final class AppStore: ObservableObject {
     }
 
     private func finishRun() {
+        closeOutputFolder()
         isProcessing = false
         processingTask = nil
         batchCancellation = nil
@@ -399,8 +536,8 @@ final class AppStore: ObservableObject {
             previewDetail = false
         }
 
-        if originalLoadedItemID != item.id {
-            loadOriginal(url: item.url, id: item.id)
+        if originalLoadedItemID != item.id || (previewDetail && !originalIsDetailed) {
+            loadOriginal(url: item.url, id: item.id, detailed: previewDetail)
         }
         previewError = nil
         isRenderingPreview = true
@@ -494,19 +631,25 @@ final class AppStore: ObservableObject {
     /// Carica l'immagine di partenza. I formati che ImageIO non conosce
     /// (PCX, FITS, XCF…) passano da una copia PNG fatta da ImageMagick,
     /// una volta per file.
-    private func loadOriginal(url: URL, id: ImageItem.ID) {
+    ///
+    /// Ingrandendo, l'originale ridotto a 4096 px non regge il confronto con
+    /// il risultato a piena risoluzione: si ricarica fino a `detailFit`,
+    /// lasciando visibile quello ridotto finché l'altro non è pronto.
+    private func loadOriginal(url: URL, id: ImageItem.ID, detailed: Bool) {
+        if originalLoadedItemID != id { previewOriginal = nil }
         originalLoadedItemID = id
-        previewOriginal = nil
+        originalIsDetailed = detailed
+        let fit = detailed ? Self.detailFit : Self.originalFit
         let destination = previewDirectory
             .appendingPathComponent("original-\(abs(url.path.hashValue)).png")
         Task { [weak self] in
             let image = await Task.detached(priority: .userInitiated) { () -> CGImage? in
-                if let image = Self.loadImage(url, maxPixels: Self.originalFit) { return image }
+                if let image = Self.loadImage(url, maxPixels: fit) { return image }
                 guard let proxy = ImageMagick.displayProxy(for: url, at: destination, cancellation: nil)
                 else { return nil }
-                return Self.loadImage(proxy, maxPixels: Self.originalFit)
+                return Self.loadImage(proxy, maxPixels: fit)
             }.value
-            guard let self, self.originalLoadedItemID == id else { return }
+            guard let self, self.originalLoadedItemID == id, self.originalIsDetailed == detailed else { return }
             self.previewOriginal = image
         }
     }
@@ -532,6 +675,7 @@ final class AppStore: ObservableObject {
         previewCancellation = nil
         previewedItemID = nil
         originalLoadedItemID = nil
+        originalIsDetailed = false
         previewDetail = false
         previewOriginal = nil
         previewResult = nil
@@ -546,6 +690,9 @@ final class AppStore: ObservableObject {
     /// Lato massimo dell'originale mostrato: un 48 MP decodificato per intero
     /// sono 192 MB solo per lo schermo.
     private nonisolated static let originalFit = 4096
+    /// Lato massimo dell'originale ingrandito: basta per una foto da 48 MP
+    /// (8064 px), 195 MB in memoria.
+    private nonisolated static let detailFit = 8192
 
     var previewIsDownscaled: Bool {
         guard !previewDetail, let original = selectedItem?.pixelSize else { return false }
