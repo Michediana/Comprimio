@@ -367,6 +367,35 @@
         }
       }
     },
+    "%lld of %lld" : {
+      "comment" : "Files converted so far and files in the batch, under “Converting images” in the system progress UI.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld von %2$lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld de %2$lld"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld sur %2$lld"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld di %2$lld"
+          }
+        }
+      }
+    },
     "%lld selected" : {
       "localizations" : {
         "de" : {
@@ -746,6 +775,34 @@
         }
       }
     },
+    "A folder you choose" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Ordner Ihrer Wahl"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una carpeta que elijas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un dossier de votre choix"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una cartella a scelta"
+          }
+        }
+      }
+    },
     "A little sharpening recovers detail lost after a heavy downscale." : {
       "localizations" : {
         "de" : {
@@ -854,6 +911,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pixel reali dell’originale"
+          }
+        }
+      }
+    },
+    "Add" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi"
           }
         }
       }
@@ -1022,6 +1107,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aggiungi immagini…"
+          }
+        }
+      }
+    },
+    "Add photos or files with the + button, or drag them here." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fügen Sie Fotos oder Dateien mit der Taste + hinzu oder ziehen Sie sie hierher."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade fotos o archivos con el botón +, o arrástralos aquí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez des photos ou des fichiers avec le bouton +, ou glissez-les ici."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi foto o file con il pulsante +, o trascinali qui."
           }
         }
       }
@@ -1274,6 +1387,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Colore di sfondo"
+          }
+        }
+      }
+    },
+    "Batch" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stapel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lote"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lot"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch"
           }
         }
       }
@@ -1620,6 +1761,34 @@
         }
       }
     },
+    "Browse Files" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dateien durchsuchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Explorar Archivos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parcourir Fichiers"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sfoglia File"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "localizations" : {
         "de" : {
@@ -1700,6 +1869,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossibile eseguire %@."
+          }
+        }
+      }
+    },
+    "Cannot use “%@”: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@“ kann nicht verwendet werden: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede usar «%@»: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d’utiliser « %@ » : %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile usare «%@»: %@"
           }
         }
       }
@@ -1816,6 +2013,62 @@
         }
       }
     },
+    "Choose Photos" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotos auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir fotos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir des photos"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli foto"
+          }
+        }
+      }
+    },
+    "Choose the destination folder first." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie zuerst den Zielordner."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige primero la carpeta de destino."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez d’abord le dossier de destination."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli prima la cartella di destinazione."
+          }
+        }
+      }
+    },
     "Choose the images to process." : {
       "localizations" : {
         "de" : {
@@ -1896,6 +2149,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scegli il logo da sovrapporre. Un PNG con sfondo trasparente dà il risultato migliore."
+          }
+        }
+      }
+    },
+    "Choose the photos to compress, or images from Files." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie die Fotos zum Komprimieren oder Bilder aus Dateien."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige las fotos que quieres comprimir, o imágenes de Archivos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez les photos à compresser, ou des images depuis Fichiers."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli le foto da comprimere, o immagini da File."
           }
         }
       }
@@ -2128,6 +2409,62 @@
     "Comprimio" : {
       "shouldTranslate" : false
     },
+    "Comprimio folder in Files" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio-Ordner in Dateien"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carpeta Comprimio en Archivos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dossier Comprimio dans Fichiers"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cartella Comprimio in File"
+          }
+        }
+      }
+    },
+    "Comprimio is not allowed to add to Photos. You can allow it in Settings." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio darf nichts zu Fotos hinzufügen. Sie können es in den Einstellungen erlauben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio no tiene permiso para añadir a Fotos. Puedes permitirlo en Ajustes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio n’est pas autorisé à ajouter à Photos. Vous pouvez l’autoriser dans Réglages."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio non ha il permesso di aggiungere alle Foto. Puoi concederlo in Impostazioni."
+          }
+        }
+      }
+    },
     "Comprimio needs no installation: ImageMagick and its coders live inside the app." : {
       "localizations" : {
         "de" : {
@@ -2240,6 +2577,34 @@
         }
       }
     },
+    "Convert Again" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut konvertieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convertir de nuevo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convertir à nouveau"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Converti di nuovo"
+          }
+        }
+      }
+    },
     "Convert to sRGB" : {
       "localizations" : {
         "de" : {
@@ -2292,6 +2657,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "converto il colore"
+          }
+        }
+      }
+    },
+    "Converting images" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bilder werden konvertiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convirtiendo imágenes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conversion des images"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conversione delle immagini"
           }
         }
       }
@@ -2747,6 +3140,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "es. web-"
+          }
+        }
+      }
+    },
+    "Each converted image is added to the library as a new photo. Photos only accepts the formats it can display, such as JPEG, HEIC, PNG and TIFF." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jedes konvertierte Bild wird der Mediathek als neues Foto hinzugefügt. Fotos akzeptiert nur Formate, die es anzeigen kann, etwa JPEG, HEIC, PNG und TIFF."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada imagen convertida se añade a la fototeca como una foto nueva. Fotos solo acepta los formatos que puede mostrar, como JPEG, HEIC, PNG y TIFF."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque image convertie est ajoutée à la photothèque comme nouvelle photo. Photos n’accepte que les formats qu’il sait afficher, comme JPEG, HEIC, PNG et TIFF."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ogni immagine convertita è aggiunta alla libreria come nuova foto. Foto accetta solo i formati che sa mostrare, come JPEG, HEIC, PNG e TIFF."
           }
         }
       }
@@ -3399,6 +3820,34 @@
         }
       }
     },
+    "Folder name" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordnername"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombre de la carpeta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom du dossier"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome cartella"
+          }
+        }
+      }
+    },
     "Font" : {
       "localizations" : {
         "de" : {
@@ -3508,6 +3957,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Testo formattato (FTXT)"
+          }
+        }
+      }
+    },
+    "From Photos…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus Fotos…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desde Fotos…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Depuis Photos…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dalle Foto…"
           }
         }
       }
@@ -3771,6 +4248,34 @@
     "ImageMagick" : {
       "shouldTranslate" : false
     },
+    "ImageMagick could not complete the operation." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ImageMagick konnte den Vorgang nicht abschließen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ImageMagick no ha podido completar la operación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ImageMagick n’a pas pu terminer l’opération."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ImageMagick non è riuscito a completare l’operazione."
+          }
+        }
+      }
+    },
     "ImageMagick not available" : {
       "localizations" : {
         "de" : {
@@ -3795,6 +4300,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ImageMagick non disponibile"
+          }
+        }
+      }
+    },
+    "In Files, under On My iPad › Comprimio." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Dateien unter „Auf meinem iPad“ › Comprimio."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En Archivos, en En mi iPad › Comprimio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dans Fichiers, sous Sur mon iPad › Comprimio."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In File, sotto Sul mio iPad › Comprimio."
+          }
+        }
+      }
+    },
+    "In Files, under On My iPhone › Comprimio." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Dateien unter „Auf meinem iPhone“ › Comprimio."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En Archivos, en En mi iPhone › Comprimio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dans Fichiers, sous Sur mon iPhone › Comprimio."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In File, sotto Sul mio iPhone › Comprimio."
           }
         }
       }
@@ -4333,6 +4894,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Modalità"
+          }
+        }
+      }
+    },
+    "More" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehr"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Altro"
           }
         }
       }
@@ -4985,6 +5574,62 @@
         }
       }
     },
+    "Photos did not accept the %@ file. Choose another destination for this format." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotos hat die %@-Datei nicht angenommen. Wählen Sie für dieses Format ein anderes Ziel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotos no ha aceptado el archivo %@. Elige otro destino para este formato."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos n’a pas accepté le fichier %@. Choisissez une autre destination pour ce format."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto non ha accettato il file %@. Scegli un’altra destinazione per questo formato."
+          }
+        }
+      }
+    },
+    "Photos library" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotomediathek"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fototeca"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photothèque"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libreria Foto"
+          }
+        }
+      }
+    },
     "Photoshop Large Document (PSB)" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5294,6 +5939,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prefisso"
+          }
+        }
+      }
+    },
+    "Preview not available for this format (%@)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für dieses Format ist keine Vorschau verfügbar (%@)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vista previa no disponible para este formato (%@)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aperçu non disponible pour ce format (%@)."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anteprima non disponibile per questo formato (%@)."
           }
         }
       }
@@ -6579,6 +7252,62 @@
         }
       }
     },
+    "Save to Photos" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Fotos sichern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar en Fotos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer dans Photos"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salva nelle Foto"
+          }
+        }
+      }
+    },
+    "Saved" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gesichert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardadas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrées"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvate"
+          }
+        }
+      }
+    },
     "saving" : {
       "localizations" : {
         "de" : {
@@ -6719,6 +7448,126 @@
         }
       }
     },
+    "Settings" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réglages"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impostazioni"
+          }
+        }
+      }
+    },
+    "settings.done" : {
+      "comment" : "Button that closes the settings sheet on iPhone.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fertig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fine"
+          }
+        }
+      }
+    },
+    "Share" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teilen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partager"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Condividi"
+          }
+        }
+      }
+    },
+    "Share Result" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ergebnis teilen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartir resultado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partager le résultat"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Condividi risultato"
+          }
+        }
+      }
+    },
     "Sharpen" : {
       "localizations" : {
         "de" : {
@@ -6743,6 +7592,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nitidezza"
+          }
+        }
+      }
+    },
+    "Show in Files" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Dateien zeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar en Archivos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher dans Fichiers"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostra in File"
           }
         }
       }

@@ -1,0 +1,42 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSPhotoLibraryAddUsageDescription" : {
+      "comment" : "Purpose string shown when Comprimio asks to add the converted images to the photo library.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio fügt die konvertierten Bilder Ihrer Mediathek hinzu, wenn Sie Fotos als Ziel wählen. Ihre vorhandenen Fotos werden nie gelesen oder verändert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio adds the converted images to your library when you choose Photos as the destination. It never reads or changes your existing photos."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio añade las imágenes convertidas a tu fototeca cuando eliges Fotos como destino. Nunca lee ni modifica las fotos que ya tienes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio ajoute les images converties à votre photothèque lorsque vous choisissez Photos comme destination. Il ne lit ni ne modifie jamais vos photos existantes."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprimio aggiunge le immagini convertite alla libreria quando scegli Foto come destinazione. Non legge e non modifica mai le foto che hai già."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -35,7 +35,9 @@ struct CompactContentView: View {
                 SettingsView()
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { showsSettings = false }
+                            // Non «Done»: sul Mac quella chiave è lo stato
+                            // di un file («Completato»), non un pulsante.
+                            Button("settings.done") { showsSettings = false }
                         }
                     }
             }

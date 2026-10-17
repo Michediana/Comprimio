@@ -15,6 +15,7 @@ import ImageIO
 import MagickEngine
 import Photos
 import SwiftUI
+import UIKit
 
 /// Risultato di una conversione di anteprima, trasferibile fra i task.
 struct PreviewOutput: Sendable {
@@ -95,14 +96,20 @@ final class AppStore: ObservableObject {
     private var runFolderAccess: URL?
     /// Il batch in corso scrive nelle Foto.
     private var runSavesToPhotos = false
+    /// Conversioni contemporanee concesse al batch in corso. Scende a una
+    /// con un avviso di memoria: le altre corsie finiscono il loro file e
+    /// non ne prendono un altro.
+    private var laneLimit = 1
+    /// Tiene in vita il batch in corso quando l'utente lascia l'app.
+    private var backgroundRun: BackgroundRun?
+    /// Anteprima rimandata alla fine del batch da un avviso di memoria.
+    private var previewDeferred = false
 
     init() {
         previewDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("Comprimio-preview", isDirectory: true)
         try? FileManager.default.createDirectory(at: previewDirectory, withIntermediateDirectories: true)
 
-        LibraryEngine.setMemoryLimit(ConversionBudget.current.memoryLimit)
-        install = ImageMagick.inspect()
         chosenFolderName = SavedOutputFolder.resolve()?.lastPathComponent
         // Copie rimaste da una sessione chiusa dal sistema: la lista è vuota.
         ImportInbox.removeUnused(keeping: [])
@@ -116,6 +123,25 @@ final class AppStore: ObservableObject {
                 self?.refreshPreview()
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default
+            .publisher(for: UIApplication.didReceiveMemoryWarningNotification)
+            .sink { [weak self] _ in self?.handleMemoryWarning() }
+            .store(in: &cancellables)
+
+        // L'elenco dei formati registra tutti i coder di ImageMagick: fuori
+        // dal main thread, perché il primo fotogramma non lo aspetti. Fino
+        // ad allora `install` è `nil` e Converti resta spento.
+        Task { [weak self] in
+            let install = await Task.detached(priority: .userInitiated) {
+                LibraryEngine.setMemoryLimit(ConversionBudget.measure().memoryLimit)
+                return ImageMagick.inspect()
+            }.value
+            guard let self else { return }
+            self.install = install
+            // Un file arrivato prima (da «Apri con») aspetta l'anteprima.
+            self.refreshPreview()
+        }
     }
 
     var isFormatSupported: Bool {
@@ -364,13 +390,23 @@ final class AppStore: ObservableObject {
         let cancellation = MagickCancellation()
         batchCancellation = cancellation
         let jobs = items.map { (id: $0.id, url: $0.url) }
-        let lanes = ConversionBudget.current.lanes(for: settings.outputFormat)
+        // Misurato adesso, non all'avvio: la memoria concessa cambia con le
+        // altre app aperte, e un avviso precedente ha abbassato il limite.
+        let budget = ConversionBudget.measure()
+        LibraryEngine.setMemoryLimit(budget.memoryLimit)
+        laneLimit = budget.lanes(for: settings.outputFormat)
+        let background = BackgroundRun(totalFiles: jobs.count) { [weak self] in
+            self?.cancelProcessing()
+        }
+        backgroundRun = background
 
         processingTask = Task { [weak self] in
             await withTaskGroup(of: Void.self) { group in
-                // Concorrenza limitata: `lanes` conversioni contemporanee,
-                // una nuova ne parte ogni volta che una finisce.
+                // Concorrenza limitata: al massimo `laneLimit` conversioni
+                // contemporanee, una nuova ne parte quando una finisce. Il
+                // limite si rilegge ogni volta, perché può scendere.
                 var next = 0
+                var running = 0
 
                 func addTask(_ job: (id: ImageItem.ID, url: URL)) {
                     group.addTask {
@@ -394,6 +430,7 @@ final class AppStore: ObservableObject {
                                         // rimetterebbe una corsia fantasma nella UI.
                                         guard store.isProcessing else { return }
                                         store.itemProgress[job.id] = progress
+                                        store.reportBackgroundProgress()
                                     }
                                 }
                             )
@@ -402,17 +439,18 @@ final class AppStore: ObservableObject {
                     }
                 }
 
-                while next < jobs.count && next < lanes {
-                    addTask(jobs[next])
-                    next += 1
-                }
-                while await group.next() != nil {
+                while next < jobs.count || running > 0 {
+                    while next < jobs.count, running < (self?.laneLimit ?? 1) {
+                        addTask(jobs[next])
+                        next += 1
+                        running += 1
+                    }
+                    guard await group.next() != nil else { break }
+                    running -= 1
                     if Task.isCancelled { break }
-                    guard next < jobs.count else { continue }
-                    addTask(jobs[next])
-                    next += 1
                 }
             }
+            background.end(success: true)
             self?.finishRun()
         }
     }
@@ -431,7 +469,65 @@ final class AppStore: ObservableObject {
         processingTask = nil
         isProcessing = false
         itemProgress = [:]
+        backgroundRun?.end(success: false)
+        backgroundRun = nil
         closeOutputFolder()
+        refreshDeferredPreview()
+    }
+
+    /// L'avanzamento per l'interfaccia del sistema: i file conclusi, più
+    /// metà di quelli in corso. La frazione di ImageMagick riparte da zero a
+    /// ogni operazione (lettura, ridimensionamento, scrittura): contarla per
+    /// intero farebbe sembrare finito un file a metà.
+    private func reportBackgroundProgress() {
+        let unit = Double(BackgroundRun.unitsPerFile)
+        let partial = itemProgress.values.reduce(0) { $0 + $1.fraction * unit / 2 }
+        backgroundRun?.update(
+            completedFiles: processedCount,
+            units: Int64(processedCount) * BackgroundRun.unitsPerFile + Int64(partial)
+        )
+    }
+
+    // MARK: - Memoria
+
+    /// Il sistema avverte prima di chiudere l'app. Si libera ciò che non
+    /// serve e si rallenta invece di fermarsi:
+    ///
+    /// - il limite di ImageMagick scende a quello di una corsia, per tutto
+    ///   il processo: le conversioni in corso continuano, con i pixel in
+    ///   eccesso nella cache su disco;
+    /// - le altre corsie finiscono il loro file e non ne prendono un altro;
+    /// - l'anteprima a piena risoluzione (fino a 400 MB fra originale e
+    ///   risultato) torna quella ridotta, e durante un batch non si rigenera.
+    ///
+    /// Il limite torna quello misurato al batch successivo.
+    private func handleMemoryWarning() {
+        LibraryEngine.setMemoryLimit(ConversionBudget.pressureMemoryLimit)
+        laneLimit = 1
+        let dropsDetail = previewDetail
+        if dropsDetail {
+            previewDetail = false
+            if let item = selectedItem, originalIsDetailed {
+                loadOriginal(url: item.url, id: item.id, detailed: false)
+            }
+        }
+        if isProcessing {
+            if dropsDetail { previewResult = nil }
+            if dropsDetail || isRenderingPreview {
+                previewCancellation?.cancel()
+                previewTask?.cancel()
+                isRenderingPreview = false
+                previewDeferred = true
+            }
+        } else if dropsDetail {
+            refreshPreview()
+        }
+    }
+
+    private func refreshDeferredPreview() {
+        guard previewDeferred else { return }
+        previewDeferred = false
+        refreshPreview()
     }
 
     /// Lavoro pesante: gira fuori dal main actor.
@@ -561,9 +657,11 @@ final class AppStore: ObservableObject {
         }
         itemProgress[id] = nil
         processedCount += 1
+        reportBackgroundProgress()
     }
 
     private func finishRun() {
+        backgroundRun = nil
         closeOutputFolder()
         isProcessing = false
         processingTask = nil
@@ -580,6 +678,7 @@ final class AppStore: ObservableObject {
         }
         if failed > 0 { summary += " · " + String(localized: "\(failed) errors") }
         lastRunSummary = summary
+        refreshDeferredPreview()
     }
 
     // MARK: - Anteprima

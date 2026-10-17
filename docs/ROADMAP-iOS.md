@@ -1,6 +1,6 @@
 # Roadmap: Comprimio per iPad e iPhone
 
-Stato: **fasi 1–5 completate nel simulatore**, manca la misura su iPhone reale · Branch di lavoro: `ios-port`
+Stato: **fasi 1–6 completate nel simulatore**, mancano le prove su iPhone e iPad reali · Branch di lavoro: `ios-port`
 
 Obiettivo: portare Comprimio su iPadOS e iOS con le stesse opzioni di
 conversione del Mac, **lasciando l'app Mac com'è**.
@@ -44,7 +44,8 @@ tutto il processo. Le parti che cambiano:
 
 ```
 Comprimio/                 app Mac, invariata (alcuni file anche nel target iOS)
-ComprimioiOS/              app iOS/iPadOS: App, AppStore (stato, motore, budget), Views
+ComprimioiOS/              app iOS/iPadOS: App, AppStore (stato, motore, budget, background), Views,
+                           PrivacyInfo.xcprivacy, InfoPlist.xcstrings (solo iOS)
 Packages/MagickEngine/     LibraryEngine, ImageIOBridge + test nel simulatore (solo iOS)
 Scripts/build-imagemagick-ios.sh   cross-compila ImageMagick e le dipendenze
 Vendor/ImageMagick-iOS/    ImageMagick.xcframework (ios-arm64, ios-arm64-simulator),
@@ -58,7 +59,7 @@ Vendor/ImageMagick-iOS/    ImageMagick.xcframework (ios-arm64, ios-arm64-simulat
 | `Models/WatermarkSettings` | Condiviso, con `#if` su `NSFontManager` (iOS: `UIFont.familyNames`) |
 | `Services/AppStore`, `FolderAccess`, `Views/*`, `ComprimioApp` | Riscritti in `ComprimioiOS/` |
 | `Views/PreviewZoom` | Condiviso: lo stato dello zoom; la NSView che cattura gli eventi è in `#if os(macOS)` |
-| `Localizable.xcstrings`, `Assets.xcassets`, `ComprimioIcon.icon` | Condivisi |
+| `Localizable.xcstrings`, `Assets.xcassets`, `ComprimioIcon.icon` | Condivisi (il catalogo ha anche le stringhe solo iOS: sul Mac sono chiavi in più, mai usate) |
 | `InfoPlist.xcstrings`, entitlement, `Support/DebugSnapshot`, `Support/LiquidGlass` | Solo Mac |
 
 Nel progetto la cartella `Comprimio/` è un gruppo sincronizzato di entrambi i
@@ -140,7 +141,7 @@ Decisioni:
 - **Q16 senza HDRI**: stesso file del Mac a meno di arrotondamenti. La Q8
   dimezza la memoria ma perde i 16 bit e cambia i file;
 - **limite delle risorse** con `LibraryEngine.setMemoryLimit`, calcolato da
-  `os_proc_available_memory()` e diviso per le corsie: oltre il limite
+  `os_proc_available_memory()` all'avvio e di nuovo a ogni batch: oltre il limite
   ImageMagick usa la cache su disco nella cartella temporanea, e nel
   simulatore non costa tempo apprezzabile. Da verificare su iPhone;
 - corsie parallele calcolate sulla memoria, non sui core (indicativamente 1–2
@@ -292,18 +293,45 @@ crash, con avanzamento e annullamento funzionanti.
       flusso compatto)
 
 ### Fase 6 — Background e rifinitura
-- [ ] `BGContinuedProcessingTask` per i batch (iOS 26), `beginBackgroundTask`
-      prima di iOS 26
-- [ ] Limiti di memoria e corsie tarati per dispositivo
-- [ ] Gestione degli avvisi di memoria: sospendere le corsie, non crashare
-- [ ] Localizzazione (`Localizable.xcstrings` condiviso dove possibile)
-- [ ] Privacy: privacy manifest (`NSPhotoLibraryAddUsageDescription` c'è
-      già dalla fase 4, solo in inglese)
-- [ ] Tradurre le stringhe nuove di iOS (destinazioni, importazione,
-      azioni dell'iPhone)
-- [ ] Avvio lento nel simulatore appena acceso (~40 s prima del primo
-      fotogramma): capire se è `ImageMagick.inspect()` sul main thread e
-      se succede anche sul dispositivo
+- [x] `BackgroundRun`: su iOS 26 il batch è un `BGContinuedProcessingTask`
+      (identificatore `<bundle ID>.convert.<UUID>`, dichiarato con il
+      jolly in `BGTaskSchedulerPermittedIdentifiers`; strategia `.fail`),
+      con titolo, «3 di 12» e avanzamento per l'interfaccia del sistema;
+      fermato da lì, il batch si annulla. Prima di iOS 26, o se il sistema
+      rifiuta la richiesta, `beginBackgroundTask`: alla scadenza il batch
+      non si annulla, l'app viene sospesa e riprende al ritorno
+- [x] Provato nel simulatore (che non ha `BGTaskScheduler`: «not available
+      on this platform», quindi il ripiego): 12 foto da 24 MP, Impostazioni
+      in primo piano dopo 9 s, conversioni avanti per ~36 s in background
+      (più lente, ~4 s per file invece di 1,5), sospensione a metà file,
+      ripresa e batch completo tornando all'app
+- [x] Budget misurato a ogni batch, non solo all'avvio: la memoria concessa
+      cambia con le altre app aperte, e un avviso precedente ha abbassato
+      il limite
+- [x] Avvisi di memoria: il limite di ImageMagick scende a quello di una
+      corsia (le conversioni in corso continuano con la cache su disco), le
+      corsie scendono a una per il resto del batch, l'anteprima a piena
+      risoluzione torna ridotta (durante un batch si rigenera alla fine).
+      Provato con 3 corsie forzate: dopo l'avviso una sola, batch completo
+- [x] Localizzazione: le 31 stringhe nuove di iOS nel catalogo condiviso,
+      tradotte in italiano, tedesco, spagnolo e francese con il registro
+      del Mac (tu; «Sie» in tedesco, «vous» in francese). Il «Done» del
+      foglio delle impostazioni è `settings.done`: sul Mac «Done» è lo stato
+      di un file, tradotto «Completato»
+- [x] Privacy manifest (`ComprimioiOS/PrivacyInfo.xcprivacy`): nessun
+      tracciamento né dato raccolto; UserDefaults (CA92.1) e date dei file
+      (C617.1, 3B52.1: `stat` in ImageMagick e gli attributi letti
+      dall'app). `NSPhotoLibraryAddUsageDescription` tradotta in
+      `ComprimioiOS/InfoPlist.xcstrings`
+- [x] Avvio lento: non è `ImageMagick.inspect()`, che dura 20–30 ms
+      (spostato comunque fuori dal main thread). Con il simulatore appena
+      acceso il primo fotogramma arriva a 4,7 s dall'avvio del processo,
+      1,8–3,4 s ai lanci successivi (build Debug): i ~40 s erano il
+      simulatore che finiva di avviarsi
+- [ ] Sul dispositivo: `BGContinuedProcessingTask` con iOS 26 (interfaccia
+      del sistema, Interrompi, avanzamento), corsie e limite con la memoria
+      vera (`os_proc_available_memory`), un avviso di memoria vero durante
+      un batch di foto da 48 MP, tempo di avvio
 
 ### Fase 7 — Release
 - [ ] Job iOS separato in `.github/workflows/release.yml` (quello Mac non si tocca)
@@ -324,7 +352,7 @@ crash, con avanzamento e annullamento funzionanti.
 | Decisione | Quando | Stato |
 |---|---|---|
 | Quantum Q8 o Q16 senza HDRI | fine fase 1 | **Q16 senza HDRI** |
-| Limiti delle risorse e numero di corsie | fase 6 | 256 MB per corsia regge nel simulatore; da tarare su iPhone |
+| Limiti delle risorse e numero di corsie | fase 6 | 256 MB per corsia, corsie dalla memoria misurata a ogni batch, una sola dopo un avviso; da verificare su iPhone |
 | Formato intermedio per il passaggio ImageIO | fase 2 | **TIFF non compresso alla profondità dell'originale** (8 o 16 bit) |
 | libheif (LGPL-3.0) linkata staticamente per l'AVIF | prima della fase 7 | aperta: tenerla rispettando la LGPL (ricollegamento possibile), o togliere l'AVIF su iOS |
 | Condividere i file o copiarli nel target iOS | fase 3 | **condividere** (gruppo sincronizzato con eccezioni per il target iOS) |
